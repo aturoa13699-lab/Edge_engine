@@ -91,56 +91,6 @@ def fit_beta_calibrator(engine: Engine, season: int, min_samples: int = 80) -> O
         method="L-BFGS-B",
     )
 
-<<<<<<< HEAD
-    a, b = float(res.x[0]), float(res.x[1])
-    params = {"a": a, "b": b, "brier_loss": float(res.fun), "fitted_on": season}
-
-    with engine.begin() as conn:
-        conn.execute(
-            sql_text(
-                """
-            INSERT INTO nrl.calibration_params (season, params)
-            VALUES (:s, :p::jsonb)
-            ON CONFLICT (season) DO UPDATE
-            SET params = EXCLUDED.params, fitted_at = now()
-        """
-            ),
-            dict(s=season, p=json.dumps(params)),
-        )
-
-    logger.info(f"✓ Beta calibration fitted for S{season}: a={a:.3f}, b={b:.3f} (Brier={res.fun:.4f})")
-    return params
-
-
-def load_latest_calibrator(engine: Engine, season: int) -> Optional[Dict]:
-    """Load the most recent calibration parameters for a season."""
-    with engine.begin() as conn:
-        row = conn.execute(
-            sql_text(
-                """
-            SELECT params FROM nrl.calibration_params
-            WHERE season = :s ORDER BY fitted_at DESC LIMIT 1
-        """
-            ),
-            dict(s=season),
-        ).mappings().first()
-
-    if row and row.get("params"):
-        return dict(row["params"])
-    return None
-
-
-def apply_calibration(p_fair: float, params: Optional[Dict]) -> float:
-    """Apply fitted beta calibration (fallback to raw p_fair)."""
-    if not params or "a" not in params:
-        return float(p_fair)
-
-    a = params["a"]
-    b = params["b"]
-    p = np.clip(float(p_fair), 1e-6, 1.0 - 1e-6)
-    calibrated = (p ** a) / (p ** a + (1.0 - p) ** b)
-    return float(np.clip(calibrated, 0.0, 1.0))
-=======
     a = float(res.x[0])
     b = float(res.x[1])
     params = {"a": a, "b": b, "brier_loss": float(res.fun), "fitted_on": season}
@@ -175,4 +125,3 @@ def apply_calibration(p_fair: float, params: Optional[Dict]) -> float:
 
     logger.info("✓ Beta calibration fitted for S%s: a=%.3f b=%.3f (Brier=%.4f)", season, a, b, float(res.fun))
     return params
->>>>>>> origin/codex/2026-02-09-bootstrap-and-verify-nrl-edge-engine-v1.1

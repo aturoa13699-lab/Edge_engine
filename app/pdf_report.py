@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from datetime import datetime
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
@@ -125,24 +126,6 @@ def generate_weekly_audit_pdf(engine: Engine, season: int, round_num: int, out_p
     # Styled slip cards
     if slips:
         elems.append(Paragraph("Styled Slip Cards", styles["Heading2"]))
-<<<<<<< HEAD
-        out_dir = os.path.dirname(out_path) or "."
-        for s in slips[:8]:
-            slip_obj = slip_obj_from_row(s)
-            png_path = os.path.join(out_dir, f"slip_{slip_obj.portfolio_id[:8]}.png")
-            generate_styled_summary_image(slip_obj, png_path)
-            elems.append(Image(png_path, width=420, height=220))
-            elems.append(Spacer(1, 12))
-
-    doc.build(elems)
-    return out_path
-
-
-def default_report_path(season: int, round_num: int) -> str:
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    os.makedirs("reports", exist_ok=True)
-    return os.path.join("reports", f"audit_S{season}_R{round_num}_{ts}.pdf")
-=======
         for s in slips[:8]:
             slip = _dict_to_slip(s)
             tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
@@ -153,4 +136,9 @@ def default_report_path(season: int, round_num: int) -> str:
 
     doc.build(elems)
     return out_path
->>>>>>> origin/codex/2026-02-09-bootstrap-and-verify-nrl-edge-engine-v1.1
+
+
+def default_report_path(season: int, round_num: int) -> str:
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    os.makedirs("reports", exist_ok=True)
+    return os.path.join("reports", f"audit_S{season}_R{round_num}_{ts}.pdf")
