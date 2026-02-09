@@ -1,47 +1,47 @@
-# NRL Edge Engine v1.1 — Goldmaster CML
+# NRL Edge Engine v1.1 – Goldmaster CML
 
-A hardened NRL quant pipeline with:
-- ML (XGBoost) + heuristic blend
-- Beta calibration (DB-versioned)
-- Risk controls (fractional Kelly + guardrails)
-- Discord slip cards (PNG attachments)
-- PDF audit reporting (styled cards + reliability plot)
+**Self-improving quantitative betting system for NRL.**  
+Includes drift-triggered retraining, champion promotion, calibration, Discord/PDF/Streamlit outputs.
 
 ## Quick Start
 
 ```bash
 pip install -r requirements.txt
+playwright install chromium
 
-# 1) Set env (copy .env.example to .env and edit)
-# DATABASE_URL=postgresql://user:pass@localhost:5432/nrl_edge
+# Database schema
+psql "$DATABASE_URL" -f app/sql/schema_pg.sql
 
-# 2) Apply schema (no `psql` required)
-python -m app.run init
+> Note: `.env.example` uses a plain `postgresql://...` URL so `psql "$DATABASE_URL"` works.
+> The app upgrades it internally for SQLAlchemy (`postgresql+psycopg`).
 
-# If you *do* have psql installed, this also works:
-# psql "$DATABASE_URL" -f app/sql/schema_pg.sql
-
-# 3) Seed player ratings (optional)
+# Seed intelligence
 python -m app.seed_player_ratings
 
-# 4) Train
-python -m app.run train --seasons 2022,2023,2024,2025
-
-# 5) Daily run (scrape + deploy + (optional) notify)
-python -m app.run daily --season 2026 --round 1
-
-# 6) Dry run (still persists artifacts as status=dry_run; no notify unless DRY_NOTIFY=1)
-python -m app.run daily --season 2026 --round 1 --dry-run
+# Full pipeline
+python -m app.run full
 
 Commands
-	•	python -m app.run init — apply schema
-	•	python -m app.run scrapers --season 2026 — scrape-only
-	•	python -m app.run deploy --season 2026 --round 1 — deploy-only
-	•	python -m app.run daily --season 2026 --round 1 — scrapers + deploy (+ notify)
-	•	python -m app.run train --seasons 2022,2023,2024,2025 — train + registry update
-	•	python -m app.run report --season 2026 --round 1 — generate PDF audit report
-	•	python -m app.run fit-calibration --season 2026 — fit beta calibrator (needs resolved outcomes)
+	•	python -m app.run full → schema + scrapers + train + calibrate + deploy + report
+	•	python -m app.run daily → scrapers + deploy + notify + report
+	•	python -m app.run train → train and promote champion
+	•	python -m app.run scrapers → weather + referee scrape
+	•	python -m app.run report → weekly PDF audit
+	•	python -m app.run calibrate → fit beta calibrator for season
 
-CI
-	•	ruff check .
-	•	pytest -q
+Dry-run semantics
+
+Set:
+	•	DRY_RUN=1 → predictions + slips still persist (status=dry_run) for HUD/PDF visibility
+	•	DRY_NOTIFY=1 → still posts Discord during dry-run
+
+Production
+
+Railway cron jobs run scrapers + retrain + weekly reports.
+Engine tracks:
+	•	model versions and champion artifacts
+	•	drift metrics (Brier/LogLoss/PSI)
+	•	CLV tracking where available
+	•	calibrated probabilities for better sizing
+
+Built with discipline.

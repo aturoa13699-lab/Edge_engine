@@ -1,16 +1,21 @@
 FROM python:3.12-slim
 
+WORKDIR /app
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY . .
+COPY . /app
 
-# If you use Playwright scrapers in-container:
-# RUN playwright install chromium
+# Playwright browsers (only needed if you run referee scraper in-container)
+RUN python -m playwright install chromium || true
 
 CMD ["python", "-m", "app.run", "daily"]

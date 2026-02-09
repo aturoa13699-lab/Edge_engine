@@ -1,25 +1,27 @@
 name: Scrapers
 
 on:
-  schedule:
-    - cron: "0 6 * * *"
   workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *" # daily 9:00 UTC
 
 jobs:
-  run:
+  scrapers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - name: Run daily
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install chromium
+
+      - name: Run scrapers
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          DISCORD_USERNAME: Edge Engine
-          DEPLOY_SEASON: "2026"
-          DEPLOY_ROUND: "1"
-          FRACTIONAL_KELLY: "0.5"
-        run: python -m app.run daily --season 2026 --round 1
+        run: |
+          python -m app.run scrapers
