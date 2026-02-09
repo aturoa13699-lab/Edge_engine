@@ -1,2 +1,5 @@
+git checkout main
+git pull origin main  # ensure main is up to date
+git merge origin/codex/2026-02-09-bootstrap-and-verify-nrl-edge-engine-v1.1
 streamlit==1.38.0
 requests==2.32.3
