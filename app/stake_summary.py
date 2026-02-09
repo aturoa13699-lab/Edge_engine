@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 from typing import Dict, Any
 from reportlab.graphics import renderPM
 from reportlab.graphics.shapes import Drawing, Rect, String
@@ -7,12 +8,25 @@ from reportlab.graphics.shapes import Drawing, Rect, String
 
 STATUS_COLORS = {
     "pending": "#0b63f6",
+=======
+import os
+
+from reportlab.graphics import renderPM
+from reportlab.graphics.shapes import Drawing, Rect, String
+
+from .types import Slip
+
+STATUS_COLORS = {
+    "pending": "#0b63f6",
+    "dry_run": "#999999",
+>>>>>>> origin/codex/2026-02-09-bootstrap-and-verify-nrl-edge-engine-v1.1
     "win": "#00B050",
     "loss": "#FB7185",
     "void": "#999999",
 }
 
 
+<<<<<<< HEAD
 def generate_styled_summary(slip) -> str:
     """
     Returns an HTML card for Streamlit/Discord previews.
@@ -62,11 +76,29 @@ def generate_styled_summary(slip) -> str:
   <div style="margin-top:8px; display:flex; justify-content:space-between;">
     <div style="font-size:13px;">Stake: <strong>{slip.stake_units:.2f}u</strong></div>
     <div style="font-size:13px; color:#00B050;">Returns: <strong>{slip.stake_units * odds_total:.2f}u</strong></div>
+=======
+def generate_styled_summary(slip: Slip) -> str:
+    status_color = STATUS_COLORS.get(slip.status, "#0b63f6")
+
+    return f"""
+<div style="background:#ffffff; border-left:4px solid {status_color}; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); padding:12px 16px; margin-bottom:12px; font-family:Roboto, sans-serif;">
+  <div style="font-size:12px; color:#0b63f6; font-weight:500;">{slip.home_team} v {slip.away_team}</div>
+  <div style="font-size:16px; font-weight:700; color:#000000;">{slip.selection}</div>
+  <div style="font-size:13px; color:#555555;">{slip.market}</div>
+  <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-size:14px;">Stake: <strong>${slip.stake:.2f}</strong></div>
+    <div style="font-size:14px;">Odds: <strong>{slip.odds:.2f}</strong></div>
+  </div>
+  <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-size:12px; color:#666;">EV: <strong>{slip.ev:.4f}</strong></div>
+    <div style="font-size:12px; color:#666;">Model: <strong>{slip.model_version}</strong></div>
+>>>>>>> origin/codex/2026-02-09-bootstrap-and-verify-nrl-edge-engine-v1.1
   </div>
 </div>
 """.strip()
 
 
+<<<<<<< HEAD
 def generate_styled_summary_image(slip, out_path: str) -> str:
     """
     Generate a PNG card using reportlab drawing primitives (no browser needed).
@@ -75,52 +107,45 @@ def generate_styled_summary_image(slip, out_path: str) -> str:
     color = STATUS_COLORS.get(status, STATUS_COLORS["pending"])
 
     width, height = 700, 320
+=======
+def _draw_slip_card(slip: Slip, width: int = 800, height: int = 360) -> Drawing:
+    status_color = STATUS_COLORS.get(slip.status, "#0b63f6")
+
+>>>>>>> origin/codex/2026-02-09-bootstrap-and-verify-nrl-edge-engine-v1.1
     d = Drawing(width, height)
 
     # Card background
     d.add(Rect(0, 0, width, height, fillColor=None, strokeColor=None))
     d.add(Rect(10, 10, width - 20, height - 20, fillColor=None, strokeColor=None))
-    d.add(Rect(10, 10, 8, height - 20, fillColor=color, strokeColor=color))
-    d.add(Rect(18, 10, width - 28, height - 20, fillColor="#FFFFFF", strokeColor="#DDDDDD"))
 
-    # Text
-    title = f"{slip.match_id}"
-    d.add(String(40, height - 60, title, fontName="Helvetica-Bold", fontSize=14, fillColor="#0b63f6"))
-    d.add(String(40, height - 90, f"Market: {slip.market}", fontName="Helvetica", fontSize=12, fillColor="#555555"))
-    d.add(String(40, height - 120, f"Stake: {slip.stake_units:.2f}u", fontName="Helvetica-Bold", fontSize=12))
+    # White card
+    d.add(Rect(20, 20, width - 40, height - 40, fillColor="#ffffff", strokeColor="#e5e7eb", strokeWidth=1))
 
-    y = height - 160
-    for leg in getattr(slip, "legs", [])[:4]:
-        d.add(String(40, y, f"• {leg.selection} @ {float(leg.price):.2f}", fontName="Helvetica", fontSize=12))
-        y -= 22
+    # Status strip
+    d.add(Rect(20, 20, 10, height - 40, fillColor=status_color, strokeColor=status_color))
 
-    # Render to PNG
-    renderPM.drawToFile(d, out_path, fmt="PNG")
+    x = 50
+    y = height - 70
+
+    d.add(String(x, y, f"{slip.home_team} v {slip.away_team}", fontSize=18, fillColor="#0b63f6"))
+    y -= 40
+    d.add(String(x, y, slip.selection, fontSize=26, fillColor="#111827"))
+    y -= 34
+    d.add(String(x, y, slip.market, fontSize=16, fillColor="#6b7280"))
+    y -= 50
+
+    d.add(String(x, y, f"Stake: ${slip.stake:.2f}", fontSize=18, fillColor="#111827"))
+    d.add(String(x + 320, y, f"Odds: {slip.odds:.2f}", fontSize=18, fillColor="#111827"))
+    y -= 34
+
+    d.add(String(x, y, f"EV: {slip.ev:.4f}", fontSize=14, fillColor="#6b7280"))
+    d.add(String(x + 320, y, f"Model: {slip.model_version}", fontSize=14, fillColor="#6b7280"))
+
+    return d
+
+
+def generate_styled_summary_image(slip: Slip, out_path: str) -> str:
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    drawing = _draw_slip_card(slip)
+    renderPM.drawToFile(drawing, out_path, fmt="PNG")
     return out_path
-
-
-def slip_obj_from_row(row: Dict[str, Any]):
-    """
-    Rebuild a minimal Slip-like object from DB row dict (for PDF rendering).
-    """
-    from .types import Slip, SlipLeg
-
-    # slip_json may be empty / not reliable; rebuild minimal single-leg card
-    leg = SlipLeg(
-        match_id=row.get("match_id") or "",
-        market=row.get("market") or "",
-        selection=row.get("portfolio_id", "")[:12],
-        price=1.90,
-        p_model=0.5,
-    )
-    return Slip(
-        portfolio_id=row.get("portfolio_id", ""),
-        season=int(row.get("season") or 0),
-        round_num=int(row.get("round_num") or 0),
-        match_id=row.get("match_id") or row.get("portfolio_id", "")[:12],
-        market=row.get("market") or "",
-        legs=[leg],
-        stake_units=float(row.get("stake_units") or 0.0),
-        status=row.get("status") or "pending",
-        created_at="",
-    )

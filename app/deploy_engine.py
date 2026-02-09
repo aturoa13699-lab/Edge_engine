@@ -1,170 +1,242 @@
-import os
-import logging
-from dataclasses import asdict
-from datetime import datetime
+from __future__ import annotations
 
-import pandas as pd
+import json
+import logging
+import math
+import os
+import uuid
+from dataclasses import asdict
+from typing import Any, Dict, Optional, Tuple
+
 import joblib
+import numpy as np
+import pandas as pd
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Engine
 
-from .types import Slip, SlipLeg
-from .risk import size_and_guard
-from .calibration import load_latest_calibrator, apply_calibration
+from .calibration import apply_calibration, load_latest_calibrator
+from .model_registry import get_champion
+from .risk import size_stake
+from .types import Slip
 
 logger = logging.getLogger("nrl-pillar1")
 
 
-def _implied_prob_from_odds(price: float) -> float:
-    try:
-        if price and price > 0:
-            return 1.0 / float(price)
-    except Exception:
-        pass
-    return 0.5
+def _sigmoid(x: float) -> float:
+    return 1.0 / (1.0 + math.exp(-x))
 
 
-def _fetch_match_context(engine: Engine, season: int, round_num: int) -> list[dict]:
-    with engine.begin() as conn:
-        rows = conn.execute(
-            sql_text(
-                """
-            SELECT match_id, season, round_num, home_team, away_team
-            FROM nrl.matches
-            WHERE season = :s AND round_num = :r
-            ORDER BY match_id
-        """
-            ),
-            dict(s=season, r=round_num),
-        ).mappings().all()
-    return [dict(r) for r in rows]
-
-
-def _fetch_market_price(engine: Engine, match_id: str, team: str) -> float | None:
+def _fetch_match(engine: Engine, match_id: str) -> Optional[Dict[str, Any]]:
     with engine.begin() as conn:
         row = conn.execute(
             sql_text(
                 """
-            SELECT close_price
-            FROM nrl.odds
-            WHERE match_id = :mid AND team = :t
-            ORDER BY captured_at DESC
-            LIMIT 1
-        """
+                SELECT match_id, season, round_num, match_date, venue, home_team, away_team
+                FROM nrl.matches_raw
+                WHERE match_id=:mid
+                """
             ),
-            dict(mid=match_id, t=team),
+            dict(mid=match_id),
         ).mappings().first()
-    if row and row.get("close_price") is not None:
-        return float(row["close_price"])
-    return None
+    return dict(row) if row else None
 
 
-def _heuristic_p_fair(row: dict) -> float:
-    # Minimal baseline heuristic: 0.50 and adjust via f_diff if available
-    f_diff = float(row.get("f_diff") or 0.0)
-    p = 0.50 + (0.02 * max(-5.0, min(5.0, f_diff)))
-    return float(max(0.01, min(0.99, p)))
+def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
+    # All features are defined in schema_pg.sql (tables/views).
+    with engine.begin() as conn:
+        row = conn.execute(
+            sql_text(
+                """
+                SELECT
+                  m.season, m.match_id, m.match_date, m.venue, m.home_team, m.away_team,
 
+                  COALESCE(rh.rest_days, 7) AS home_rest_days,
+                  COALESCE(ra.rest_days, 7) AS away_rest_days,
 
-def _build_live_features(engine: Engine, row: dict) -> pd.DataFrame:
-    # NOTE: This is a minimal live feature vector aligned to trainer.
-    # In production, you would join the same views used in training.
-    match_id = row["match_id"]
-    home_team = row["home_team"]
+                  COALESCE(fh.win_pct_last5, 0.5) AS home_form,
+                  COALESCE(fa.win_pct_last5, 0.5) AS away_form,
 
-    home_price = _fetch_market_price(engine, match_id, home_team) or 1.90
-    home_implied_prob = _implied_prob_from_odds(home_price)
+                  COALESCE(ch.style_score, 0.0) AS home_coach_style,
+                  COALESCE(ca.style_score, 0.0) AS away_coach_style,
 
-    feat = {
-        "home_rest_days": float(row.get("home_rest_days") or 7),
-        "away_rest_days": float(row.get("away_rest_days") or 7),
-        "home_form": float(row.get("home_form") or 0.5),
-        "away_form": float(row.get("away_form") or 0.5),
-        "home_coach_style": float(row.get("home_coach_style") or 7.0),
-        "away_coach_style": float(row.get("away_coach_style") or 7.0),
-        "home_injuries": float(row.get("home_injuries") or 0),
-        "away_injuries": float(row.get("away_injuries") or 0),
-        "home_implied_prob": float(home_implied_prob),
-        "f_diff": float(row.get("f_diff") or 0.0),
+                  COALESCE(ih.injury_count, 0) AS home_injuries,
+                  COALESCE(ia.injury_count, 0) AS away_injuries,
+
+                  COALESCE(oh.last_price, oh.close_price, oh.opening_price, 1.90) AS odds_taken,
+                  COALESCE(oh.close_price, oh.last_price, 1.90) AS close_price,
+
+                  COALESCE(ph.rating, 1500) AS home_rating,
+                  COALESCE(pa.rating, 1500) AS away_rating,
+
+                  COALESCE(w.is_wet, 0) AS is_wet,
+                  COALESCE(w.temp_c, 20.0) AS temp_c,
+                  COALESCE(w.wind_speed_kmh, 10.0) AS wind_speed_kmh
+
+                FROM nrl.matches_raw m
+                LEFT JOIN nrl.team_rest_v rh ON rh.match_id=m.match_id AND rh.team=m.home_team
+                LEFT JOIN nrl.team_rest_v ra ON ra.match_id=m.match_id AND ra.team=m.away_team
+
+                LEFT JOIN nrl.team_form_v fh ON fh.match_id=m.match_id AND fh.team=m.home_team
+                LEFT JOIN nrl.team_form_v fa ON fa.match_id=m.match_id AND fa.team=m.away_team
+
+                LEFT JOIN nrl.coach_profile ch ON ch.season=m.season AND ch.team=m.home_team
+                LEFT JOIN nrl.coach_profile ca ON ca.season=m.season AND ca.team=m.away_team
+
+                LEFT JOIN nrl.injuries_current ih ON ih.season=m.season AND ih.team=m.home_team
+                LEFT JOIN nrl.injuries_current ia ON ia.season=m.season AND ia.team=m.away_team
+
+                LEFT JOIN nrl.odds oh ON oh.match_id=m.match_id AND oh.team=m.home_team
+
+                LEFT JOIN nrl.team_ratings ph ON ph.season=m.season AND ph.team=m.home_team
+                LEFT JOIN nrl.team_ratings pa ON pa.season=m.season AND pa.team=m.away_team
+
+                LEFT JOIN nrl.weather_daily w ON w.match_date=m.match_date AND w.venue=m.venue
+
+                WHERE m.match_id=:mid
+                """
+            ),
+            dict(mid=match_id),
+        ).mappings().first()
+
+    if not row:
+        return {
+            "home_rest_days": 7,
+            "away_rest_days": 7,
+            "home_form": 0.5,
+            "away_form": 0.5,
+            "home_coach_style": 0.0,
+            "away_coach_style": 0.0,
+            "home_injuries": 0.0,
+            "away_injuries": 0.0,
+            "market_implied_prob": 0.5,
+            "rating_diff": 0.0,
+            "is_wet": 0.0,
+            "temp_c": 20.0,
+            "wind_speed_kmh": 10.0,
+            "odds_taken": 1.90,
+            "close_price": 1.90,
+        }
+
+    home_rating = float(row["home_rating"])
+    away_rating = float(row["away_rating"])
+    rating_diff = home_rating - away_rating
+
+    close_price = float(row["close_price"]) if row["close_price"] else 1.90
+    market_implied_prob = float(1.0 / close_price) if close_price > 0 else 0.5
+
+    return {
+        "home_rest_days": float(row["home_rest_days"]),
+        "away_rest_days": float(row["away_rest_days"]),
+        "home_form": float(row["home_form"]),
+        "away_form": float(row["away_form"]),
+        "home_coach_style": float(row["home_coach_style"]),
+        "away_coach_style": float(row["away_coach_style"]),
+        "home_injuries": float(row["home_injuries"]),
+        "away_injuries": float(row["away_injuries"]),
+        "market_implied_prob": float(market_implied_prob),
+        "rating_diff": float(rating_diff),
+        "is_wet": float(row["is_wet"]),
+        "temp_c": float(row["temp_c"]),
+        "wind_speed_kmh": float(row["wind_speed_kmh"]),
+        "odds_taken": float(row["odds_taken"] or 1.90),
+        "close_price": float(close_price),
     }
-    return pd.DataFrame([feat])
 
 
-def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, row: dict) -> tuple[float, Slip | None]:
-    home_team = row["home_team"]
-    away_team = row["away_team"]
-    match_id = row["match_id"]
+def _heuristic_p(feature_row: Dict[str, float]) -> float:
+    # Logistic baseline on rating diff + modest adjustments
+    rd = feature_row["rating_diff"]
+    injuries = feature_row["home_injuries"] - feature_row["away_injuries"]
+    rest = feature_row["home_rest_days"] - feature_row["away_rest_days"]
+    form = feature_row["home_form"] - feature_row["away_form"]
 
-    # === Baseline heuristic ===
-    p_fair = _heuristic_p_fair(row)
+    x = (rd / 200.0) + (-0.08 * injuries) + (0.04 * rest) + (0.9 * form)
+    return float(np.clip(_sigmoid(x), 0.01, 0.99))
 
-    # === ML prediction (if available) ===
-    try:
-        model_path = os.path.join("models", "nrl_xgboost_v1.joblib")
-        if os.path.exists(model_path):
-            bundle = joblib.load(model_path)
-            ml_model = bundle["model"]
-            feature_cols = bundle.get("feature_cols")
-            X_live = _build_live_features(engine, row)
-            if feature_cols:
-                X_live = X_live[feature_cols]
-            ml_raw_p = float(ml_model.predict_proba(X_live)[:, 1][0])
-            # Blend ML with heuristic baseline
-            p_fair = 0.65 * ml_raw_p + 0.35 * p_fair
-            logger.debug(f"ML blend {home_team} vs {away_team}: ml={ml_raw_p:.3f}, blend={p_fair:.3f}")
-    except Exception as e:
-        logger.warning(f"ML model unavailable, falling back to heuristic: {e}")
 
-    p_fair = float(max(0.01, min(0.99, p_fair)))
+def _ml_p(engine: Engine, feature_row: Dict[str, float]) -> Optional[float]:
+    champ = get_champion(engine, model_key="nrl_h2h_xgb")
+    if not champ:
+        return None
 
-    # === Calibration ===
+    path = champ.get("artifact_path")
+    if not path or not os.path.exists(path):
+        return None
+
+    bundle = joblib.load(path)
+    model = bundle["model"]
+    cols = bundle["feature_cols"]
+
+    X = pd.DataFrame([{c: float(feature_row.get(c, 0.0)) for c in cols}])
+    p = float(model.predict_proba(X.values)[:, 1][0])
+    return float(np.clip(p, 0.01, 0.99))
+
+
+def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, match_id: str, dry_run: bool) -> Tuple[Slip, Dict[str, Any]]:
+    feature_row = _fetch_live_feature_row(engine, match_id)
+
+    p_h = _heuristic_p(feature_row)
+    p_ml = _ml_p(engine, feature_row)
+
+    alpha = float(os.getenv("ML_BLEND_ALPHA", "0.65"))
+    if p_ml is None:
+        p_blend = p_h
+    else:
+        p_blend = float(alpha * p_ml + (1.0 - alpha) * p_h)
+
+    # Calibration (beta)
     calibrator = load_latest_calibrator(engine, season)
-    p_calibrated = apply_calibration(p_fair, calibrator)
-    if abs(p_calibrated - p_fair) > 0.02:
-        logger.debug(f"Calibration shift {home_team} vs {away_team}: {p_fair:.3f} → {p_calibrated:.3f}")
+    p_cal = apply_calibration(p_blend, calibrator)
 
-    # Market odds
-    home_price = _fetch_market_price(engine, match_id, home_team) or 1.90
-    # Choose side if edge exists
-    p_book = _implied_prob_from_odds(home_price)
-    edge = p_calibrated - p_book
+    odds_taken = float(feature_row.get("odds_taken", 1.90))
+    close_price = float(feature_row.get("close_price", odds_taken))
 
-    slip = None
-    if edge > 0.02:
-        leg = SlipLeg(
-            match_id=match_id,
-            market="H2H",
-            selection=home_team,
-            price=float(home_price),
-            p_model=float(p_calibrated),
-        )
-        slip = Slip(
-            portfolio_id=f"{season}-{round_num}-{match_id}-{home_team}",
-            season=season,
-            round_num=round_num,
-            match_id=match_id,
-            market="H2H",
-            legs=[leg],
-            stake_units=0.0,  # filled after sizing
-            status="pending",
-            created_at=datetime.utcnow().isoformat(),
-        )
+    # EV in decimal odds space: E[profit] per $1 stake
+    ev = (p_cal * odds_taken) - 1.0
 
-    # Persist prediction row
+    bankroll = float(os.getenv("BANKROLL", "1000"))
+    sizing = size_stake(bankroll=bankroll, p=p_cal, odds=odds_taken, max_frac=0.05)
+    stake = float(sizing.stake)
+
+    status = "dry_run" if dry_run else "pending"
+
+    # Build slip
+    match = _fetch_match(engine, match_id) or {}
+    home_team = match.get("home_team", "HOME")
+    away_team = match.get("away_team", "AWAY")
+
+    portfolio_id = str(uuid.uuid4())
     model_version = os.getenv("MODEL_VERSION", "v2026-02-poisson-v1")
+
+    slip = Slip(
+        portfolio_id=portfolio_id,
+        season=season,
+        round_num=round_num,
+        match_id=match_id,
+        home_team=home_team,
+        away_team=away_team,
+        market="H2H",
+        selection=f"{home_team} H2H",
+        odds=odds_taken,
+        stake=stake,
+        ev=ev,
+        status=status,
+        model_version=model_version,
+        reason=f"p_h={p_h:.3f} p_ml={(p_ml if p_ml is not None else float('nan')):.3f} p_blend={p_blend:.3f} p_cal={p_cal:.3f} capped={sizing.capped}",
+    )
+
+    # CLV diff (odds space): close - taken (positive is good if taken earlier at better odds)
+    clv_diff = float(close_price - odds_taken)
+
+    # Persist prediction + slip ALWAYS (even in dry-run)
     with engine.begin() as conn:
         conn.execute(
             sql_text(
                 """
-            INSERT INTO nrl.model_prediction
-            (season, round_num, match_id, home_team, away_team, p_fair, calibrated_p, model_version)
-            VALUES (:s,:r,:mid,:h,:a,:pf,:cp,:ver)
-            ON CONFLICT (season, round_num, match_id) DO UPDATE
-            SET p_fair=EXCLUDED.p_fair,
-                calibrated_p=EXCLUDED.calibrated_p,
-                model_version=EXCLUDED.model_version,
-                updated_at=now()
-        """
+                INSERT INTO nrl.model_prediction
+                (season, round_num, match_id, home_team, away_team, p_fair, calibrated_p, model_version, clv_diff)
+                VALUES (:s,:r,:mid,:h,:a,:pf,:cp,:ver,:clv)
+                """
             ),
             dict(
                 s=season,
@@ -172,66 +244,56 @@ def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, row: 
                 mid=match_id,
                 h=home_team,
                 a=away_team,
-                pf=float(p_fair),
-                cp=float(p_calibrated),
+                pf=p_blend,
+                cp=p_cal,
                 ver=model_version,
+                clv=clv_diff,
             ),
         )
 
-    return float(p_calibrated), slip
-
-
-def deploy_round(engine: Engine, season: int, round_num: int, dry_run: bool = True) -> list[Slip]:
-    matches = _fetch_match_context(engine, season, round_num)
-    slips: list[Slip] = []
-
-    bankroll_units = float(os.getenv("BANKROLL_UNITS", "10"))
-
-    for row in matches:
-        p_cal, slip = evaluate_match_and_decide(engine, season, round_num, row)
-        if not slip:
-            continue
-
-        # Size stake with risk controls (uses calibrated prob embedded in leg)
-        stake_units = size_and_guard(
-            bankroll_units=bankroll_units,
-            p=float(slip.legs[0].p_model),
-            price=float(slip.legs[0].price),
-        )
-        slip.stake_units = float(stake_units)
-
-        slips.append(slip)
-
-        # Persist slip (even in dry run, store as pending)
-        with engine.begin() as conn:
-            conn.execute(
-                sql_text(
-                    """
-                INSERT INTO nrl.slips
-                (portfolio_id, season, round_num, match_id, market, slip_json, stake_units, status)
-                VALUES (:pid,:s,:r,:mid,:mkt,:js::jsonb,:stk,:st)
-                ON CONFLICT (portfolio_id) DO UPDATE
-                SET slip_json=EXCLUDED.slip_json,
-                    stake_units=EXCLUDED.stake_units,
-                    status=EXCLUDED.status,
-                    updated_at=now()
-            """
-                ),
-                dict(
-                    pid=slip.portfolio_id,
-                    s=season,
-                    r=round_num,
-                    mid=slip.match_id,
-                    mkt=slip.market,
-                    js=str(asdict(slip)).replace("'", '"'),
-                    stk=float(slip.stake_units),
-                    st=slip.status,
-                ),
-            )
-
-        logger.info(
-            f"{'[DRY]' if dry_run else '[LIVE]'} {slip.market} {slip.legs[0].selection} "
-            f"@{slip.legs[0].price:.2f} p={slip.legs[0].p_model:.3f} stake={slip.stake_units:.2f}u"
+        conn.execute(
+            sql_text(
+                """
+                INSERT INTO nrl.slips (portfolio_id, season, round_num, slip_json, status)
+                VALUES (:pid, :s, :r, :sj::jsonb, :st)
+                ON CONFLICT (portfolio_id) DO NOTHING
+                """
+            ),
+            dict(pid=portfolio_id, s=season, r=round_num, sj=json.dumps(asdict(slip)), st=status),
         )
 
-    return slips
+    debug = {
+        "p_heuristic": p_h,
+        "p_ml": p_ml,
+        "p_blend": p_blend,
+        "p_cal": p_cal,
+        "odds_taken": odds_taken,
+        "close_price": close_price,
+        "clv_diff": clv_diff,
+        "stake": stake,
+        "ev": ev,
+    }
+    return slip, debug
+
+
+def evaluate_round(engine: Engine, season: int, round_num: int, dry_run: bool) -> None:
+    with engine.begin() as conn:
+        matches = conn.execute(
+            sql_text(
+                """
+                SELECT match_id
+                FROM nrl.matches_raw
+                WHERE season=:s AND round_num=:r
+                ORDER BY match_date NULLS LAST, match_id
+                """
+            ),
+            dict(s=season, r=round_num),
+        ).mappings().all()
+
+    if not matches:
+        logger.warning("No matches found for season=%s round=%s", season, round_num)
+        return
+
+    for m in matches:
+        slip, debug = evaluate_match_and_decide(engine, season, round_num, m["match_id"], dry_run=dry_run)
+        logger.info("Slip %s: %s (stake=%.2f ev=%.4f clv=%.3f)", slip.portfolio_id[:8], slip.selection, slip.stake, slip.ev, debug["clv_diff"])

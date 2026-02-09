@@ -1,10 +1,10 @@
 import os
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
+from sqlalchemy import text
+from .db import get_engine
 
 
 def seed_player_ratings():
-    engine = create_engine(make_url(os.getenv("DATABASE_URL")).set(drivername="postgresql+psycopg"))
+    engine = get_engine()
 
     players = [
         ("James Tedesco", "Sydney Roosters", 2215.0, 88.6, "19 Line Breaks", True, "Highest ceiling player"),
@@ -24,31 +24,31 @@ def seed_player_ratings():
         ("Paul Alamoti", "Penrith Panthers", 1050.0, 52.0, "21 LB in 19 games", True, "Centre speed threat"),
     ]
 
-    print(f"Seeding {len(players)} player ratings for 2026...")
-
     with engine.begin() as conn:
         for player, team, rating, avg_score, key_stat, is_speed, note in players:
             conn.execute(
                 text(
                     """
-                INSERT INTO nrl.player_ratings
-                (season, player_name, team, rating, avg_score, key_stat, is_speed_player, note, last_updated)
-                VALUES (2026, :p, :t, :r, :a, :k, :speed, :note, NOW())
-                ON CONFLICT (season, player_name, team)
-                DO UPDATE SET
-                    rating = EXCLUDED.rating,
-                    avg_score = EXCLUDED.avg_score,
-                    key_stat = EXCLUDED.key_stat,
-                    is_speed_player = EXCLUDED.is_speed_player,
-                    note = EXCLUDED.note,
-                    last_updated = NOW()
-            """
+                    INSERT INTO nrl.player_ratings
+                    (season, player_name, team, rating, avg_score, key_stat, is_speed_player, note, last_updated)
+                    VALUES (2026, :p, :t, :r, :a, :k, :speed, :note, NOW())
+                    ON CONFLICT (season, player_name, team)
+                    DO UPDATE SET
+                        rating=EXCLUDED.rating,
+                        avg_score=EXCLUDED.avg_score,
+                        key_stat=EXCLUDED.key_stat,
+                        is_speed_player=EXCLUDED.is_speed_player,
+                        note=EXCLUDED.note,
+                        last_updated=NOW()
+                    """
                 ),
-                {"p": player, "t": team, "r": rating, "a": avg_score, "k": key_stat, "speed": is_speed, "note": note},
+                dict(p=player, t=team, r=rating, a=avg_score, k=key_stat, speed=is_speed, note=note),
             )
 
-    print("✅ v1.1 Seed complete. Squad Value and Speed Interaction now active.")
+    print("✅ Seed complete.")
 
 
 if __name__ == "__main__":
+    if not os.getenv("DATABASE_URL"):
+        raise SystemExit("DATABASE_URL must be set")
     seed_player_ratings()
