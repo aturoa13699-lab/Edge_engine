@@ -15,4 +15,4 @@ COPY . .
 
 EXPOSE ${PORT:-8501}
 
-CMD ["sh", "-c", "streamlit run streamlit_app/app.py --server.port=${PORT:-8501}"]
+CMD ["sh", "-c", "streamlit run streamlit_app/main.py --server.port=${PORT:-8501}"]

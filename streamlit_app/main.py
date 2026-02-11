@@ -5,8 +5,12 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
-# Allow `from app...` imports when running from streamlit_app/
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Ensure the project root (parent of streamlit_app/) is at the front of
+# sys.path so the ``app`` *package* is always resolved before any file
+# that happens to share the name.
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from app.stake_summary import generate_styled_summary  # noqa: E402
 from app.types import Slip  # noqa: E402
