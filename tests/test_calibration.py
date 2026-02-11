@@ -1,5 +1,5 @@
 from sqlalchemy import text
-from app.calibration import fit_beta_calibrator, load_latest_calibrator, apply_calibration
+from engine.calibration import fit_beta_calibrator, load_latest_calibrator, apply_calibration
 
 
 def test_apply_calibration_identity_when_missing():

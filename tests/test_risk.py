@@ -1,4 +1,4 @@
-from app.risk import kelly_fraction, size_stake
+from engine.risk import kelly_fraction, size_stake
 
 
 def test_kelly_fraction_no_edge():
