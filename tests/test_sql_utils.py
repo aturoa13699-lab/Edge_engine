@@ -1,4 +1,4 @@
-from app.sql_utils import split_sql_statements
+from engine.sql_utils import split_sql_statements
 
 
 def test_splitter_respects_quotes_and_semicolons():

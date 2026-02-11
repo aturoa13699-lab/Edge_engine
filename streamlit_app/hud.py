@@ -5,20 +5,14 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
-# Locate the directory that contains the ``app`` package and ensure it is
-# on sys.path.  When running locally the script lives inside
-# ``streamlit_app/`` (one level below the project root), but some PaaS
-# builders (e.g. Railpack) may flatten the layout so the script ends up
-# right next to the ``app/`` directory.  Searching both the script's own
-# directory *and* its parent covers both cases without hard-coding paths.
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-for _candidate in (_script_dir, os.path.dirname(_script_dir)):
-    if os.path.isdir(os.path.join(_candidate, "app")) and _candidate not in sys.path:
-        sys.path.insert(0, _candidate)
-        break
+# Ensure the project root is on sys.path so the ``engine`` package is importable
+# when Streamlit runs this file from the streamlit_app/ subdirectory.
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
-from app.stake_summary import generate_styled_summary  # noqa: E402
-from app.types import Slip  # noqa: E402
+from engine.stake_summary import generate_styled_summary  # noqa: E402
+from engine.types import Slip  # noqa: E402
 
 
 def _engine():

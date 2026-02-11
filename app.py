@@ -1,4 +1,4 @@
-"""Thin launcher so Railpack auto-detection (main.py) starts Streamlit."""
+"""Railpack entry point — delegates to Streamlit HUD via exec."""
 import os
 
 os.execvp("streamlit", [
