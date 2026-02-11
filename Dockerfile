@@ -13,4 +13,6 @@ COPY . .
 # If you use Playwright scrapers in-container:
 # RUN playwright install chromium
 
-CMD ["python", "-m", "app.run", "daily"]
+EXPOSE ${PORT:-8501}
+
+CMD ["sh", "-c", "streamlit run streamlit_app/app.py --server.port=${PORT:-8501}"]
