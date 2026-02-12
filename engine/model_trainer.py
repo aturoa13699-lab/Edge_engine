@@ -11,7 +11,7 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import brier_score_loss, log_loss
-from sqlalchemy import text as sql_text
+from sqlalchemy import bindparam, text as sql_text
 from sqlalchemy.engine import Engine
 
 from .model_registry import maybe_promote_by_brier, register_model
@@ -54,7 +54,7 @@ def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
         m.home_team, m.away_team,
         (m.home_score > m.away_score) AS home_win
       FROM nrl.matches_raw m
-      WHERE m.season = ANY(:seasons)
+      WHERE m.season IN :seasons
         AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL
     )
     SELECT
@@ -104,7 +104,8 @@ def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
     ORDER BY b.season, b.round_num, b.match_date
     """
 
-    df = pd.read_sql(sql_text(query), engine, params={"seasons": seasons})
+    query_obj = sql_text(query).bindparams(bindparam("seasons", expanding=True))
+    df = pd.read_sql(query_obj, engine, params={"seasons": seasons})
     return df
 
 

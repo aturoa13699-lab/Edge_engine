@@ -16,7 +16,7 @@ def kelly_fraction(p: float, odds: float) -> float:
 
 
 def apply_fractional_kelly(f: float) -> float:
-    frac = float(os.getenv("FRACTIONAL_KELLY", "1.0"))
+    frac = float(os.getenv("FRACTIONAL_KELLY", "0.5"))
     if frac <= 0.0:
         frac = 1.0
     return f * frac
