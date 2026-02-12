@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 
 from .calibration import apply_calibration, load_latest_calibrator
 from .deploy_engine import _fetch_live_feature_row, _heuristic_p, _ml_p
+from .guardrails import RoundExposureTracker, passes_edge_floor, passes_entropy_gate
 from .risk import apply_fractional_kelly, kelly_fraction
 
 logger = logging.getLogger("nrl-pillar1")
@@ -23,6 +24,9 @@ class BacktestResult:
     wins: int = 0
     losses: int = 0
     no_edge_skipped: int = 0
+    entropy_skipped: int = 0
+    edge_floor_skipped: int = 0
+    exposure_capped: int = 0
     initial_bankroll: float = 1000.0
     final_bankroll: float = 1000.0
     peak_bankroll: float = 1000.0
@@ -50,6 +54,9 @@ class BacktestResult:
             "wins": self.wins,
             "losses": self.losses,
             "no_edge_skipped": self.no_edge_skipped,
+            "entropy_skipped": self.entropy_skipped,
+            "edge_floor_skipped": self.edge_floor_skipped,
+            "exposure_capped": self.exposure_capped,
             "hit_rate_pct": round(self.hit_rate, 2),
             "initial_bankroll": round(self.initial_bankroll, 2),
             "final_bankroll": round(self.final_bankroll, 2),
@@ -112,9 +119,11 @@ def run_backtest(
         peak_bankroll=initial_bankroll,
     )
     bankroll = initial_bankroll
+    tracker = RoundExposureTracker(bankroll=bankroll)
 
     for m in matches:
         match_id = m["match_id"]
+        round_num = m["round_num"]
         home_win = bool(m["home_score"] > m["away_score"])
 
         # Generate prediction
@@ -141,6 +150,20 @@ def run_backtest(
             result.no_edge_skipped += 1
             continue
 
+        # EV check
+        ev = (p_cal * odds_taken) - 1.0
+
+        # --- Guardrails ---
+        if not passes_entropy_gate(p_cal):
+            result.entropy_skipped += 1
+            result.no_edge_skipped += 1
+            continue
+
+        if not passes_edge_floor(ev):
+            result.edge_floor_skipped += 1
+            result.no_edge_skipped += 1
+            continue
+
         raw_f = kelly_fraction(p_cal, odds_taken)
         f = apply_fractional_kelly(raw_f)
 
@@ -155,6 +178,14 @@ def run_backtest(
         if stake <= 0:
             result.no_edge_skipped += 1
             continue
+
+        # Round exposure cap
+        stake = tracker.clamp_stake(round_num, stake)
+        if stake <= 0:
+            result.exposure_capped += 1
+            result.no_edge_skipped += 1
+            continue
+        tracker.record(round_num, stake)
 
         result.total_bets += 1
         result.total_staked += stake
@@ -212,5 +243,6 @@ def run_backtest(
     logger.info("  P&L: $%.2f | ROI: %.2f%%", summary["total_pnl"], summary["roi_pct"])
     logger.info("  Bankroll: $%.2f -> $%.2f | Peak: $%.2f | Max DD: %.1f%%", summary["initial_bankroll"], summary["final_bankroll"], summary["peak_bankroll"], summary["max_drawdown_pct"])
     logger.info("  Avg Brier: %.5f | Skipped (no edge): %s", summary["avg_brier_score"], summary["no_edge_skipped"])
+    logger.info("  Guardrails — entropy: %s, edge_floor: %s, exposure_cap: %s", summary["entropy_skipped"], summary["edge_floor_skipped"], summary["exposure_capped"])
 
     return result

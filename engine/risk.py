@@ -16,7 +16,7 @@ def kelly_fraction(p: float, odds: float) -> float:
 
 
 def apply_fractional_kelly(f: float) -> float:
-    frac = float(os.getenv("FRACTIONAL_KELLY", "0.5"))
+    frac = float(os.getenv("FRACTIONAL_KELLY", "0.33"))
     if frac <= 0.0:
         frac = 1.0
     return f * frac
@@ -30,7 +30,7 @@ class SizingDecision:
     reason: str
 
 
-def size_stake(bankroll: float, p: float, odds: float, max_frac: float = 0.05) -> SizingDecision:
+def size_stake(bankroll: float, p: float, odds: float, max_frac: float = 0.03) -> SizingDecision:
     raw_f = kelly_fraction(p, odds)
     f = apply_fractional_kelly(raw_f)
 
