@@ -255,7 +255,7 @@ def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, match
             sql_text(
                 """
                 INSERT INTO nrl.slips (portfolio_id, season, round_num, slip_json, status)
-                VALUES (:pid, :s, :r, :sj::jsonb, :st)
+                VALUES (:pid, :s, :r, CAST(:sj AS jsonb), :st)
                 ON CONFLICT (portfolio_id) DO NOTHING
                 """
             ),

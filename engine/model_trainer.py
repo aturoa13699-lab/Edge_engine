@@ -124,7 +124,7 @@ def _time_series_cv_metrics(model, X: pd.DataFrame, y: pd.Series, n_splits: int 
         model.fit(X_train, y_train)
         p = model.predict_proba(X_test)[:, 1]
         briers.append(brier_score_loss(y_test, p))
-        loglosses.append(log_loss(y_test, p, eps=1e-15))
+        loglosses.append(log_loss(y_test, p))
 
     return {
         "cv_brier_mean": float(np.mean(briers)),

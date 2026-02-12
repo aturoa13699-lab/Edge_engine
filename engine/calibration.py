@@ -103,7 +103,7 @@ def fit_beta_calibrator(engine: Engine, season: int, min_samples: int = 80) -> O
                 sql_text(
                     f"""
                     INSERT INTO {cal_table} (season, params)
-                    VALUES (:s, :p::jsonb)
+                    VALUES (:s, CAST(:p AS jsonb))
                     ON CONFLICT (season)
                     DO UPDATE SET params=EXCLUDED.params, fitted_at=now()
                     """
