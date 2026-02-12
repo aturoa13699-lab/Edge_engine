@@ -9,7 +9,6 @@ import joblib
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import brier_score_loss, log_loss
 from sqlalchemy import bindparam, text as sql_text
 from sqlalchemy.engine import Engine
@@ -109,22 +108,59 @@ def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
     return df
 
 
-def _time_series_cv_metrics(model, X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> Dict[str, float]:
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-    briers = []
-    loglosses = []
+def _purged_walk_forward_cv(
+    model,
+    X: pd.DataFrame,
+    y: pd.Series,
+    n_splits: int = 5,
+    embargo_pct: float = 0.02,
+) -> Dict[str, float]:
+    """Purged walk-forward cross-validation with embargo gap.
+
+    Unlike TimeSeriesSplit, this implementation:
+    1. Uses expanding windows (train always starts at index 0)
+    2. Inserts an embargo gap between train and test to prevent lookahead bias
+       from correlated features (e.g. rolling form windows that span the split)
+    3. Clips predictions before log_loss to avoid numerical issues
+    """
+    n = len(X)
+    fold_size = n // (n_splits + 1)
+    embargo_size = max(1, int(n * embargo_pct))
 
     Xv = X.values
     yv = y.values
 
-    for train_idx, test_idx in tscv.split(Xv):
-        X_train, X_test = Xv[train_idx], Xv[test_idx]
-        y_train, y_test = yv[train_idx], yv[test_idx]
+    briers = []
+    loglosses = []
+
+    for i in range(n_splits):
+        # Train: [0, train_end), Embargo: [train_end, test_start), Test: [test_start, test_end)
+        train_end = fold_size * (i + 1)
+        test_start = train_end + embargo_size
+        test_end = min(train_end + fold_size + embargo_size, n)
+
+        if test_start >= n or test_start >= test_end:
+            continue
+
+        X_train, y_train = Xv[:train_end], yv[:train_end]
+        X_test, y_test = Xv[test_start:test_end], yv[test_start:test_end]
+
+        if len(X_train) < 30 or len(X_test) < 5:
+            continue
 
         model.fit(X_train, y_train)
         p = model.predict_proba(X_test)[:, 1]
+        p = np.clip(p, 1e-15, 1.0 - 1e-15)
         briers.append(brier_score_loss(y_test, p))
         loglosses.append(log_loss(y_test, p))
+
+    if not briers:
+        return {
+            "cv_brier_mean": 0.25,
+            "cv_brier_std": 0.0,
+            "cv_logloss_mean": 0.693,
+            "cv_logloss_std": 0.0,
+        }
 
     return {
         "cv_brier_mean": float(np.mean(briers)),
@@ -159,7 +195,7 @@ def train_model(engine: Engine, seasons: List[int]) -> Optional[Dict]:
         n_jobs=max(1, os.cpu_count() or 2),
     )
 
-    metrics = _time_series_cv_metrics(model, X, y, n_splits=5)
+    metrics = _purged_walk_forward_cv(model, X, y, n_splits=5, embargo_pct=0.02)
 
     # Fit final model on all data
     model.fit(X.values, y.values)

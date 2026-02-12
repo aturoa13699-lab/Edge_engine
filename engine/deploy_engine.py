@@ -15,6 +15,7 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Engine
 
 from .calibration import apply_calibration, load_latest_calibrator
+from .guardrails import RoundExposureTracker, passes_edge_floor, passes_entropy_gate
 from .model_registry import get_champion
 from .risk import size_stake
 from .types import Slip
@@ -172,7 +173,14 @@ def _ml_p(engine: Engine, feature_row: Dict[str, float]) -> Optional[float]:
     return float(np.clip(p, 0.01, 0.99))
 
 
-def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, match_id: str, dry_run: bool) -> Tuple[Slip, Dict[str, Any]]:
+def evaluate_match_and_decide(
+    engine: Engine,
+    season: int,
+    round_num: int,
+    match_id: str,
+    dry_run: bool,
+    exposure_tracker: Optional[RoundExposureTracker] = None,
+) -> Tuple[Slip, Dict[str, Any]]:
     feature_row = _fetch_live_feature_row(engine, match_id)
 
     p_h = _heuristic_p(feature_row)
@@ -195,8 +203,24 @@ def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, match
     ev = (p_cal * odds_taken) - 1.0
 
     bankroll = float(os.getenv("BANKROLL", "1000"))
-    sizing = size_stake(bankroll=bankroll, p=p_cal, odds=odds_taken, max_frac=0.05)
+    max_frac = float(os.getenv("MAX_STAKE_FRAC", "0.03"))
+    sizing = size_stake(bankroll=bankroll, p=p_cal, odds=odds_taken, max_frac=max_frac)
     stake = float(sizing.stake)
+
+    # --- Guardrails ---
+    skip_reason = None
+    if not passes_entropy_gate(p_cal):
+        skip_reason = "entropy_gate"
+        stake = 0.0
+    elif not passes_edge_floor(ev):
+        skip_reason = "edge_floor"
+        stake = 0.0
+    elif exposure_tracker is not None and stake > 0:
+        stake = exposure_tracker.clamp_stake(round_num, stake)
+        if stake <= 0:
+            skip_reason = "round_exposure_cap"
+        else:
+            exposure_tracker.record(round_num, stake)
 
     status = "dry_run" if dry_run else "pending"
 
@@ -222,7 +246,7 @@ def evaluate_match_and_decide(engine: Engine, season: int, round_num: int, match
         ev=ev,
         status=status,
         model_version=model_version,
-        reason=f"p_h={p_h:.3f} p_ml={(p_ml if p_ml is not None else float('nan')):.3f} p_blend={p_blend:.3f} p_cal={p_cal:.3f} capped={sizing.capped}",
+        reason=f"p_h={p_h:.3f} p_ml={(p_ml if p_ml is not None else float('nan')):.3f} p_blend={p_blend:.3f} p_cal={p_cal:.3f} capped={sizing.capped}{(' skip=' + skip_reason) if skip_reason else ''}",
     )
 
     # CLV diff (odds space): close - taken (positive is good if taken earlier at better odds)
@@ -294,6 +318,9 @@ def evaluate_round(engine: Engine, season: int, round_num: int, dry_run: bool) -
         logger.warning("No matches found for season=%s round=%s", season, round_num)
         return
 
+    bankroll = float(os.getenv("BANKROLL", "1000"))
+    tracker = RoundExposureTracker(bankroll=bankroll)
+
     for m in matches:
-        slip, debug = evaluate_match_and_decide(engine, season, round_num, m["match_id"], dry_run=dry_run)
+        slip, debug = evaluate_match_and_decide(engine, season, round_num, m["match_id"], dry_run=dry_run, exposure_tracker=tracker)
         logger.info("Slip %s: %s (stake=%.2f ev=%.4f clv=%.3f)", slip.portfolio_id[:8], slip.selection, slip.stake, slip.ev, debug["clv_diff"])
