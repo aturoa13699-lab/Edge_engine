@@ -162,12 +162,13 @@ with tab_status:
             from engine.reporting import fetch_calibration_for_season
             cal = fetch_calibration_for_season(eng, season)
             if cal:
-                st.write(f"**Season:** {cal.get('fitted_on', season)}")
+                fitted_on = cal.get("fitted_on", "N/A")
+                st.write(f"**Fitted on season:** {fitted_on}")
                 st.write(f"**a:** {cal.get('a', 'N/A'):.4f}")
                 st.write(f"**b:** {cal.get('b', 'N/A'):.4f}")
                 st.write(f"**Brier Loss:** {cal.get('brier_loss', 'N/A'):.5f}")
             else:
-                st.info("No calibration fitted for this season.")
+                st.info("No calibration fitted yet. Run the Pipeline to fit calibration.")
         except Exception:
             st.info("Run Init to set up the database schema first.")
 
@@ -270,18 +271,21 @@ with tab_pipeline:
 
     with p5:
         if st.button("5. Fit Calibration", use_container_width=True):
-            with st.spinner("Fitting beta calibrator..."):
+            with st.spinner("Fitting beta calibrator for all historical seasons..."):
                 try:
                     from engine.calibration import fit_beta_calibrator
-                    params = fit_beta_calibrator(eng, season - 1)
-                    if params:
-                        st.success(
-                            f"Calibrated S{season - 1}: "
-                            f"a={params['a']:.3f} b={params['b']:.3f} "
-                            f"(Brier={params['brier_loss']:.5f})"
-                        )
-                    else:
-                        st.warning("Need 80+ labelled predictions. Backfill more seasons.")
+                    fitted_any = False
+                    for cal_season in [2022, 2023, 2024, 2025]:
+                        params = fit_beta_calibrator(eng, cal_season)
+                        if params:
+                            st.success(
+                                f"Calibrated S{cal_season}: "
+                                f"a={params['a']:.3f} b={params['b']:.3f} "
+                                f"(Brier={params['brier_loss']:.5f})"
+                            )
+                            fitted_any = True
+                    if not fitted_any:
+                        st.warning("Need 80+ labelled predictions per season. Backfill first.")
                 except Exception as e:
                     st.error(f"Calibration failed: {e}")
 
@@ -373,13 +377,20 @@ with tab_pipeline:
                 bf = backfill_predictions(eng, season=s)
                 status_box.write(f"   S{s}: {bf['backfilled']} backfilled")
 
-            status_box.write("5/5 — Fitting calibration...")
+            status_box.write("5/5 — Fitting calibration for all historical seasons...")
             from engine.calibration import fit_beta_calibrator
-            cal = fit_beta_calibrator(eng, season - 1)
-            if cal:
-                status_box.write(f"   Calibration: a={cal['a']:.3f} b={cal['b']:.3f}")
-            else:
-                status_box.write("   Calibration skipped (not enough labelled data)")
+            cal_fitted = 0
+            for cal_season in [2022, 2023, 2024, 2025]:
+                cal = fit_beta_calibrator(eng, cal_season)
+                if cal:
+                    status_box.write(
+                        f"   S{cal_season}: a={cal['a']:.3f} b={cal['b']:.3f}"
+                    )
+                    cal_fitted += 1
+                else:
+                    status_box.write(f"   S{cal_season}: skipped (insufficient data)")
+            if cal_fitted == 0:
+                status_box.write("   No calibration fitted (not enough labelled data)")
 
             status_box.update(label="Pipeline complete!", state="complete")
         except Exception as e:
@@ -493,5 +504,11 @@ with tab_slips:
     else:
         for d in rows:
             slip = _dict_to_slip(d)
-            html = generate_styled_summary(slip)
-            st.markdown(html, unsafe_allow_html=True)
+            label = f"{slip.home_team} v {slip.away_team} | {slip.selection} | ${slip.stake:.2f} @ {slip.odds:.2f}"
+            with st.expander(label, expanded=False):
+                html = generate_styled_summary(slip)
+                st.markdown(html, unsafe_allow_html=True)
+                if slip.reason:
+                    st.divider()
+                    st.caption("Model Debug")
+                    st.code(slip.reason, language=None)

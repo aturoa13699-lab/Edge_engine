@@ -30,14 +30,21 @@ def _beta_transform(p: np.ndarray, a: float, b: float) -> np.ndarray:
 
 
 def load_latest_calibrator(engine: Engine, season: int) -> Optional[Dict]:
+    """Load calibration params for a season, falling back to the most recent prior season."""
     table = _tbl(engine, "calibration_params")
     with engine.begin() as conn:
         row = conn.execute(
-            sql_text(f"SELECT params FROM {table} WHERE season=:s ORDER BY fitted_at DESC LIMIT 1"),
+            sql_text(
+                f"SELECT season AS cal_season, params FROM {table}"
+                f" WHERE season <= :s ORDER BY season DESC, fitted_at DESC LIMIT 1"
+            ),
             dict(s=season),
         ).mappings().first()
 
     if row and row.get("params") is not None:
+        cal_season = row.get("cal_season")
+        if cal_season is not None and int(cal_season) != season:
+            logger.info("Calibration fallback: requested S%s, using S%s", season, cal_season)
         params = row["params"]
         if isinstance(params, str):
             return json.loads(params)

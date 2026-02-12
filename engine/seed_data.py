@@ -191,14 +191,18 @@ def _generate_odds(fixtures: List[Dict], ratings: Dict[str, float], rng: random.
 # ---------------------------------------------------------------------------
 
 def _insert_matches(engine: Engine, fixtures: List[Dict]) -> int:
+    affected = 0
     with engine.begin() as conn:
         for f in fixtures:
-            conn.execute(
+            result = conn.execute(
                 sql_text("""
                     INSERT INTO nrl.matches_raw
                     (match_id, season, round_num, match_date, venue, home_team, away_team, home_score, away_score)
                     VALUES (:mid, :s, :r, :d, :v, :h, :a, :hs, :as_)
-                    ON CONFLICT (match_id) DO NOTHING
+                    ON CONFLICT (match_id) DO UPDATE
+                    SET home_score = COALESCE(EXCLUDED.home_score, nrl.matches_raw.home_score),
+                        away_score = COALESCE(EXCLUDED.away_score, nrl.matches_raw.away_score),
+                        updated_at = now()
                 """),
                 dict(
                     mid=f["match_id"], s=f["season"], r=f["round_num"],
@@ -207,24 +211,31 @@ def _insert_matches(engine: Engine, fixtures: List[Dict]) -> int:
                     hs=f["home_score"], as_=f["away_score"],
                 ),
             )
-    return len(fixtures)
+            affected += result.rowcount
+    return affected
 
 
 def _insert_odds(engine: Engine, odds_rows: List[Dict]) -> int:
+    affected = 0
     with engine.begin() as conn:
         for o in odds_rows:
-            conn.execute(
+            result = conn.execute(
                 sql_text("""
                     INSERT INTO nrl.odds (match_id, team, opening_price, close_price, last_price)
                     VALUES (:mid, :t, :op, :cp, :lp)
-                    ON CONFLICT (match_id, team) DO NOTHING
+                    ON CONFLICT (match_id, team) DO UPDATE
+                    SET opening_price = COALESCE(EXCLUDED.opening_price, nrl.odds.opening_price),
+                        close_price = COALESCE(EXCLUDED.close_price, nrl.odds.close_price),
+                        last_price = COALESCE(EXCLUDED.last_price, nrl.odds.last_price),
+                        updated_at = now()
                 """),
                 dict(
                     mid=o["match_id"], t=o["team"],
                     op=o["opening_price"], cp=o["close_price"], lp=o["last_price"],
                 ),
             )
-    return len(odds_rows)
+            affected += result.rowcount
+    return affected
 
 
 def _insert_team_ratings(engine: Engine, season: int, ratings: Dict[str, float]) -> int:
@@ -301,7 +312,7 @@ def seed_all(
     Seed all core tables with synthetic NRL data.
 
     historical_seasons get full 27-round seasons with scores.
-    current_season gets 3 rounds of fixtures (no scores) for deployment.
+    current_season gets full 27 rounds of fixtures (no scores) for deployment.
     """
     if historical_seasons is None:
         historical_seasons = [2022, 2023, 2024, 2025]
@@ -329,7 +340,7 @@ def seed_all(
     # --- Current season (fixtures only, no scores) ---
     rng = random.Random(current_season * 31 + 7)
     ratings = _season_ratings(current_season, rng)
-    fixtures = _generate_fixtures(current_season, num_rounds=3, rng=rng)
+    fixtures = _generate_fixtures(current_season, num_rounds=27, rng=rng)
     odds = _generate_odds(fixtures, ratings, rng)
 
     totals["matches"] += _insert_matches(engine, fixtures)
