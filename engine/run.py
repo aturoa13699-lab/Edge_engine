@@ -89,6 +89,13 @@ def cmd_backtest(engine, season: int, rounds: list[int] | None, bankroll: float)
     return result
 
 
+def cmd_seed(engine, season: int):
+    from .seed_data import seed_all
+
+    historical = [2022, 2023, 2024, 2025]
+    seed_all(engine, historical_seasons=historical, current_season=season)
+
+
 def cmd_init(engine):
     apply_schema(engine)
 
@@ -99,7 +106,7 @@ def parse_args():
         "command",
         choices=[
             "init", "full", "daily", "scrapers", "deploy", "train",
-            "report", "fit-calibration", "backfill", "label-outcomes", "backtest",
+            "report", "fit-calibration", "backfill", "label-outcomes", "backtest", "seed",
         ],
     )
     ap.add_argument("--season", type=int, default=int(os.getenv("DEPLOY_SEASON", "2026")))
@@ -114,6 +121,7 @@ def parse_args():
 
 def cmd_full(engine, args):
     cmd_init(engine)
+    cmd_seed(engine, season=args.season)
     cmd_scrapers(engine, season=args.season)
     cmd_train(engine, seasons=[int(s.strip()) for s in args.seasons.split(",") if s.strip()])
     cmd_deploy(engine, season=args.season, round_num=args.round_num, dry_run=args.dry_run)
@@ -151,6 +159,8 @@ def main():
         cmd_label_outcomes(engine, season=args.season)
     elif args.command == "backtest":
         cmd_backtest(engine, season=args.season, rounds=rounds_list, bankroll=args.bankroll)
+    elif args.command == "seed":
+        cmd_seed(engine, season=args.season)
 
 
 if __name__ == "__main__":
