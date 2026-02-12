@@ -70,6 +70,25 @@ def cmd_fit_calibration(engine, season: int):
     fit_beta_calibrator(engine, season)
 
 
+def cmd_backfill(engine, season: int, rounds: list[int] | None):
+    from .backfill import backfill_predictions
+
+    backfill_predictions(engine, season=season, rounds=rounds)
+
+
+def cmd_label_outcomes(engine, season: int):
+    from .backfill import label_outcomes
+
+    label_outcomes(engine, season=season)
+
+
+def cmd_backtest(engine, season: int, rounds: list[int] | None, bankroll: float):
+    from .backtester import run_backtest
+
+    result = run_backtest(engine, season=season, rounds=rounds, initial_bankroll=bankroll)
+    return result
+
+
 def cmd_init(engine):
     apply_schema(engine)
 
@@ -78,12 +97,17 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "command",
-        choices=["init", "full", "daily", "scrapers", "deploy", "train", "report", "fit-calibration"],
+        choices=[
+            "init", "full", "daily", "scrapers", "deploy", "train",
+            "report", "fit-calibration", "backfill", "label-outcomes", "backtest",
+        ],
     )
     ap.add_argument("--season", type=int, default=int(os.getenv("DEPLOY_SEASON", "2026")))
     ap.add_argument("--round", dest="round_num", type=int, default=int(os.getenv("DEPLOY_ROUND", "1")))
+    ap.add_argument("--rounds", type=str, default=None, help="Comma-separated round numbers for backfill/backtest (default: all)")
     ap.add_argument("--dry-run", action="store_true", help="Persist artifacts but mark slips as dry_run; skip notify by default")
     ap.add_argument("--seasons", type=str, default="2022,2023,2024,2025")
+    ap.add_argument("--bankroll", type=float, default=float(os.getenv("BANKROLL", "1000")), help="Initial bankroll for backtesting")
     ap.add_argument("--out", type=str, default="reports/weekly_audit.pdf")
     return ap.parse_args()
 
@@ -101,6 +125,10 @@ def main():
     args = parse_args()
     engine = get_engine()
 
+    rounds_list = None
+    if args.rounds:
+        rounds_list = [int(r.strip()) for r in args.rounds.split(",") if r.strip()]
+
     if args.command == "init":
         cmd_init(engine)
     elif args.command == "full":
@@ -117,6 +145,12 @@ def main():
         cmd_report(engine, season=args.season, round_num=args.round_num, out_path=args.out)
     elif args.command == "fit-calibration":
         cmd_fit_calibration(engine, season=args.season)
+    elif args.command == "backfill":
+        cmd_backfill(engine, season=args.season, rounds=rounds_list)
+    elif args.command == "label-outcomes":
+        cmd_label_outcomes(engine, season=args.season)
+    elif args.command == "backtest":
+        cmd_backtest(engine, season=args.season, rounds=rounds_list, bankroll=args.bankroll)
 
 
 if __name__ == "__main__":

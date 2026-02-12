@@ -55,3 +55,30 @@ def train():
     if not out:
         raise HTTPException(status_code=400, detail="Training failed or insufficient data")
     return {"ok": True, "result": out}
+
+
+@app.post("/backfill/{season}")
+def backfill(season: int):
+    from .backfill import backfill_predictions
+
+    engine = get_engine()
+    result = backfill_predictions(engine, season=season)
+    return {"ok": True, "result": result}
+
+
+@app.post("/label-outcomes/{season}")
+def label_outcomes_endpoint(season: int):
+    from .backfill import label_outcomes
+
+    engine = get_engine()
+    result = label_outcomes(engine, season=season)
+    return {"ok": True, "result": result}
+
+
+@app.post("/backtest/{season}")
+def backtest(season: int, bankroll: float = 1000.0):
+    from .backtester import run_backtest
+
+    engine = get_engine()
+    result = run_backtest(engine, season=season, initial_bankroll=bankroll)
+    return {"ok": True, "summary": result.summary(), "bets": result.round_results}
