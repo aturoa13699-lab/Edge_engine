@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -18,7 +19,7 @@ from engine.types import Slip  # noqa: E402
 def _engine():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        st.error("DATABASE_URL not set")
+        st.error("DATABASE_URL not set — add it in Railway service variables.")
         st.stop()
 
     url = make_url(db_url)
@@ -55,26 +56,33 @@ status = st.selectbox("Status", ["pending", "dry_run", "win", "loss", "void"], i
 limit = st.slider("Limit", 5, 50, 15)
 
 rows = []
-with eng.begin() as conn:
-    rs = conn.execute(
-        text(
-            """
-            SELECT slip_json
-            FROM nrl.slips
-            WHERE status=:st
-            ORDER BY created_at DESC
-            LIMIT :n
-            """
-        ),
-        dict(st=status, n=limit),
-    ).mappings().all()
+try:
+    with eng.begin() as conn:
+        rs = conn.execute(
+            text(
+                """
+                SELECT slip_json
+                FROM nrl.slips
+                WHERE status=:st
+                ORDER BY created_at DESC
+                LIMIT :n
+                """
+            ),
+            dict(st=status, n=limit),
+        ).mappings().all()
 
-for r in rs:
-    sj = r["slip_json"]
-    if isinstance(sj, str):
-        import json
-        sj = json.loads(sj)
-    rows.append(sj)
+    for r in rs:
+        sj = r["slip_json"]
+        if isinstance(sj, str):
+            sj = json.loads(sj)
+        rows.append(sj)
+except Exception as exc:
+    st.warning(
+        "Could not query slips — the database schema may not be initialised yet. "
+        "Run `python -m engine.run init` or redeploy to auto-initialise.\n\n"
+        f"Detail: `{exc}`"
+    )
+    rows = []
 
 if not rows:
     st.info("No slips found.")
