@@ -57,6 +57,24 @@ def train():
     return {"ok": True, "result": out}
 
 
+@app.post("/seed/{season}")
+def seed(season: int):
+    from .seed_data import seed_all
+
+    engine = get_engine()
+    result = seed_all(engine, current_season=season)
+    return {"ok": True, "result": result}
+
+
+@app.post("/status")
+def status():
+    from .seed_data import get_table_counts
+
+    engine = get_engine()
+    counts = get_table_counts(engine)
+    return {"ok": True, "counts": counts}
+
+
 @app.post("/backfill/{season}")
 def backfill(season: int):
     from .backfill import backfill_predictions
