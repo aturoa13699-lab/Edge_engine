@@ -72,7 +72,7 @@ def run_backtest(
     engine: Engine,
     season: int,
     initial_bankroll: float = 1000.0,
-    max_stake_frac: float = 0.05,
+    max_stake_frac: float | None = None,
     rounds: Optional[List[int]] = None,
 ) -> BacktestResult:
     """
@@ -84,6 +84,9 @@ def run_backtest(
     3. Resolve against actual outcome
     4. Update bankroll
     """
+    if max_stake_frac is None:
+        max_stake_frac = float(os.getenv("MAX_STAKE_FRAC", "0.03"))
+
     base_sql = """
         SELECT m.match_id, m.season, m.round_num, m.match_date,
                m.home_team, m.away_team, m.home_score, m.away_score

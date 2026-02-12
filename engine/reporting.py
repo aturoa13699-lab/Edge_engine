@@ -74,24 +74,11 @@ def fetch_recent_predictions(engine: Engine, limit: int = 50) -> List[Dict[str, 
 
 
 def fetch_calibration_for_season(engine: Engine, season: int) -> Optional[Dict[str, Any]]:
-    """Fetch calibration params for a season (latest row)."""
-    with engine.begin() as conn:
-        row = conn.execute(
-            sql_text(
-                """
-                SELECT params
-                FROM nrl.calibration_params
-                WHERE season = :s
-                ORDER BY fitted_at DESC
-                LIMIT 1
-                """
-            ),
-            dict(s=season),
-        ).mappings().first()
+    """Fetch calibration params for a season, with fallback to prior seasons.
 
-    if not row:
-        return None
-    params = row["params"]
-    if isinstance(params, str):
-        return json.loads(params)
-    return dict(params)
+    Delegates to load_latest_calibrator which searches for the most recent
+    calibration at or before the requested season.
+    """
+    from .calibration import load_latest_calibrator
+
+    return load_latest_calibrator(engine, season)
