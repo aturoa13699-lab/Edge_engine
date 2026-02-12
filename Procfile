@@ -1,1 +1,0 @@
-web: streamlit run streamlit_app/hud.py --server.address=0.0.0.0 --server.port=$PORT --server.headless=true
