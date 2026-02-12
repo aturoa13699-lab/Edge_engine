@@ -43,7 +43,7 @@ def register_model(engine: Engine, model_key: str, version: str, artifact_path: 
             sql_text(
                 """
                 INSERT INTO nrl.model_registry (model_key, version, artifact_path, metrics, is_champion)
-                VALUES (:k, :v, :p, :m::jsonb, false)
+                VALUES (:k, :v, :p, CAST(:m AS jsonb), false)
                 ON CONFLICT (model_key, version) DO UPDATE
                 SET artifact_path=EXCLUDED.artifact_path,
                     metrics=EXCLUDED.metrics
