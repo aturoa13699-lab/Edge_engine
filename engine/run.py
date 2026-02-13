@@ -128,31 +128,6 @@ def cmd_init(engine):
     apply_schema(engine)
 
 
-def cmd_schema_parity_smoke(engine):
-    from .schema_parity import enforce_truth_schema_parity_smoke
-
-    return enforce_truth_schema_parity_smoke(engine)
-
-
-def cmd_ops_parity_smoke(engine):
-    from .ops_parity import enforce_ops_schema_parity_smoke
-
-    return enforce_ops_schema_parity_smoke(engine)
-
-
-def cmd_rebuild_clean_baseline(
-    engine, seasons: list[int], calibration_season: int, backtest_season: int
-):
-    from .rebuild_baseline import run_rebuild_clean_baseline
-
-    return run_rebuild_clean_baseline(
-        engine,
-        seasons=seasons,
-        calibration_season=calibration_season,
-        backtest_season=backtest_season,
-    )
-
-
 def cmd_rectify_clean(
     engine,
     seasons: list[int],
@@ -190,10 +165,6 @@ def parse_args():
             "label-outcomes",
             "backtest",
             "seed",
-            "rectify-clean",
-            "schema-parity-smoke",
-            "ops-parity-smoke",
-            "rebuild-clean-baseline",
         ],
     )
     ap.add_argument(
@@ -243,16 +214,6 @@ def parse_args():
         "--authoritative-payload-path",
         type=str,
         default=os.getenv("RECTIFY_AUTHORITATIVE_PAYLOAD_PATH"),
-    )
-    ap.add_argument(
-        "--calibration-season",
-        type=int,
-        default=int(os.getenv("CALIBRATION_SEASON", "2025")),
-    )
-    ap.add_argument(
-        "--backtest-season",
-        type=int,
-        default=int(os.getenv("BACKTEST_SEASON", "2025")),
     )
     return ap.parse_args()
 
@@ -314,17 +275,6 @@ def main():
         )
     elif args.command == "seed":
         cmd_seed(engine, season=args.season)
-    elif args.command == "schema-parity-smoke":
-        cmd_schema_parity_smoke(engine)
-    elif args.command == "ops-parity-smoke":
-        cmd_ops_parity_smoke(engine)
-    elif args.command == "rebuild-clean-baseline":
-        cmd_rebuild_clean_baseline(
-            engine,
-            seasons=[int(s.strip()) for s in args.seasons.split(",") if s.strip()],
-            calibration_season=args.calibration_season,
-            backtest_season=args.backtest_season,
-        )
     elif args.command == "rectify-clean":
         cmd_rectify_clean(
             engine,
