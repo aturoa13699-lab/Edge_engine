@@ -18,6 +18,7 @@ from .calibration import apply_calibration, load_latest_calibrator
 from .guardrails import RoundExposureTracker, passes_edge_floor, passes_entropy_gate
 from .model_registry import get_champion
 from .schema_router import ops_table, truth_table, truth_view
+from .schema_router import truth_table, truth_view
 from .risk import size_stake
 from .types import Slip
 

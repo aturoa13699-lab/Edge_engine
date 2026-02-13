@@ -60,3 +60,7 @@ jobs:
 
       - name: Ruff check
         run: ruff check .
+        run: pip install -r requirements-dev.txt
+
+      - name: Run Postgres integration smoke
+        run: pytest -q tests/test_integration_pg.py

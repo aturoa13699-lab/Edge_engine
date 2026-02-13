@@ -79,11 +79,17 @@ Rule: Merge gate is only **PASS** if the final two commands are `ruff format . -
 	•	pytest -q
 
 6. Integration
+3. Type + Unit Tests
+	•	mypy .
+	•	pytest -q
+
+4. Integration
 	•	pytest -q tests/test_integration_pg.py
 	•	CI: `INTEGRATION_TEST=1 pytest -q tests/test_integration_pg.py` (Postgres provisioned runner)
 	•	Local: `INTEGRATION_TEST=1` must fail when `DATABASE_URL` is not PostgreSQL (fail-closed)
 
 7. FINAL LINT END-CAP (RUN LAST, NO EXCEPTIONS)
+5. FINAL LINT END-CAP (RUN LAST, NO EXCEPTIONS)
 	•	ruff format . --check
 	•	ruff check .
 
