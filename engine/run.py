@@ -111,14 +111,41 @@ def cmd_backtest(engine, season: int, rounds: list[int] | None, bankroll: float)
 
 
 def cmd_seed(engine, season: int):
+    from .data_rectify import rectify_historical_partitions
     from .seed_data import seed_all
 
     historical = [2022, 2023, 2024, 2025]
     seed_all(engine, historical_seasons=historical, current_season=season)
+    rectify_historical_partitions(
+        engine,
+        seasons=historical + [season],
+        source_name="seed_all",
+        source_url_or_id="internal://seed_all",
+    )
 
 
 def cmd_init(engine):
     apply_schema(engine)
+
+
+def cmd_rectify_clean(
+    engine,
+    seasons: list[int],
+    source_name: str,
+    source_url_or_id: str,
+    canary_path: str | None,
+    authoritative_payload_path: str | None,
+):
+    from .data_rectify import rectify_historical_partitions
+
+    return rectify_historical_partitions(
+        engine,
+        seasons=seasons,
+        source_name=source_name,
+        source_url_or_id=source_url_or_id,
+        canary_path=canary_path,
+        authoritative_payload_path=authoritative_payload_path,
+    )
 
 
 def parse_args():
@@ -168,6 +195,26 @@ def parse_args():
         help="Initial bankroll for backtesting",
     )
     ap.add_argument("--out", type=str, default="reports/weekly_audit.pdf")
+    ap.add_argument(
+        "--source-name",
+        type=str,
+        default=os.getenv("RECTIFY_SOURCE_NAME", "trusted_import"),
+    )
+    ap.add_argument(
+        "--source-ref",
+        type=str,
+        default=os.getenv("RECTIFY_SOURCE_REF", "manual://unspecified"),
+    )
+    ap.add_argument(
+        "--canary-path",
+        type=str,
+        default=os.getenv("RECTIFY_CANARY_PATH"),
+    )
+    ap.add_argument(
+        "--authoritative-payload-path",
+        type=str,
+        default=os.getenv("RECTIFY_AUTHORITATIVE_PAYLOAD_PATH"),
+    )
     return ap.parse_args()
 
 
@@ -228,6 +275,15 @@ def main():
         )
     elif args.command == "seed":
         cmd_seed(engine, season=args.season)
+    elif args.command == "rectify-clean":
+        cmd_rectify_clean(
+            engine,
+            seasons=[int(s.strip()) for s in args.seasons.split(",") if s.strip()],
+            source_name=args.source_name,
+            source_url_or_id=args.source_ref,
+            canary_path=args.canary_path,
+            authoritative_payload_path=args.authoritative_payload_path,
+        )
 
 
 if __name__ == "__main__":

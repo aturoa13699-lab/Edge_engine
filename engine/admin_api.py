@@ -113,3 +113,26 @@ def backtest(season: int, bankroll: float = 1000.0):
     engine = get_engine()
     result = run_backtest(engine, season=season, initial_bankroll=bankroll)
     return {"ok": True, "summary": result.summary(), "bets": result.round_results}
+
+
+@app.post("/data/rectify-clean")
+def rectify_clean(
+    seasons: str = "2022,2023,2024,2025",
+    source_name: str = "trusted_import",
+    source_ref: str = "manual://unspecified",
+    canary_path: str | None = None,
+    authoritative_payload_path: str | None = None,
+):
+    from .data_rectify import rectify_historical_partitions
+
+    engine = get_engine()
+    seasons_list = [int(s.strip()) for s in seasons.split(",") if s.strip()]
+    result = rectify_historical_partitions(
+        engine,
+        seasons=seasons_list,
+        source_name=source_name,
+        source_url_or_id=source_ref,
+        canary_path=canary_path,
+        authoritative_payload_path=authoritative_payload_path,
+    )
+    return {"ok": True, "result": result.to_dict()}
