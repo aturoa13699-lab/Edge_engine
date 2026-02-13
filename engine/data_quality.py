@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from .schema_router import truth_schema
 from .seed_data import HOME_VENUES, NRL_TEAMS
 
 
@@ -39,7 +38,7 @@ class DataQualityReport:
 
 def _table_name(engine: Engine, table: str) -> str:
     if engine.dialect.name.startswith("postgres"):
-        return f"{truth_schema()}.{table}"
+        return f"nrl.{table}"
     return table
 
 

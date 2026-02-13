@@ -165,7 +165,6 @@ def parse_args():
             "label-outcomes",
             "backtest",
             "seed",
-            "rectify-clean",
         ],
     )
     ap.add_argument(
