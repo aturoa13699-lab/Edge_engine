@@ -30,7 +30,9 @@ def fit_calibration(season: int):
     engine = get_engine()
     params = fit_beta_calibrator(engine, season)
     if not params:
-        raise HTTPException(status_code=400, detail="Not enough samples to fit calibration")
+        raise HTTPException(
+            status_code=400, detail="Not enough samples to fit calibration"
+        )
     return {"ok": True, "params": params}
 
 
@@ -53,7 +55,9 @@ def train():
     engine = get_engine()
     out = train_model(engine, seasons=seasons_list)
     if not out:
-        raise HTTPException(status_code=400, detail="Training failed or insufficient data")
+        raise HTTPException(
+            status_code=400, detail="Training failed or insufficient data"
+        )
     return {"ok": True, "result": out}
 
 
@@ -73,6 +77,15 @@ def status():
     engine = get_engine()
     counts = get_table_counts(engine)
     return {"ok": True, "counts": counts}
+
+
+@app.get("/data-quality/status")
+def data_quality_status():
+    from .data_quality import run_data_quality_gate
+
+    engine = get_engine()
+    report = run_data_quality_gate(engine)
+    return {"ok": report.ok, "report": report.to_dict()}
 
 
 @app.post("/backfill/{season}")
