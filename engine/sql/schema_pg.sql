@@ -1,5 +1,91 @@
 CREATE SCHEMA IF NOT EXISTS nrl;
 
+
+CREATE SCHEMA IF NOT EXISTS nrl_clean;
+
+CREATE TABLE IF NOT EXISTS nrl_clean.matches_raw (
+  match_id text PRIMARY KEY,
+  season integer NOT NULL,
+  round_num integer NOT NULL,
+  match_date date,
+  venue text,
+  home_team text NOT NULL,
+  away_team text NOT NULL,
+  home_score integer,
+  away_score integer,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS nrl_clean.odds (
+  match_id text NOT NULL,
+  team text NOT NULL,
+  opening_price numeric(7,3),
+  close_price numeric(7,3),
+  last_price numeric(7,3),
+  steam_factor numeric(7,4),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (match_id, team)
+);
+
+CREATE TABLE IF NOT EXISTS nrl_clean.ingestion_provenance (
+  id bigserial PRIMARY KEY,
+  season integer NOT NULL,
+  match_id text NOT NULL,
+  source_name text NOT NULL,
+  source_url_or_id text NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  checksum text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_nrl_clean_prov_season_match
+  ON nrl_clean.ingestion_provenance(season, match_id);
+
+
+-- Views: rest days per team per match (clean namespace)
+CREATE OR REPLACE VIEW nrl_clean.team_rest_v AS
+WITH team_matches AS (
+  SELECT match_id, season, match_date, home_team AS team FROM nrl_clean.matches_raw
+  UNION ALL
+  SELECT match_id, season, match_date, away_team AS team FROM nrl_clean.matches_raw
+),
+lagged AS (
+  SELECT
+    match_id, season, team, match_date,
+    LAG(match_date) OVER (PARTITION BY season, team ORDER BY match_date) AS prev_date
+  FROM team_matches
+)
+SELECT
+  match_id, season, team,
+  CASE
+    WHEN prev_date IS NULL OR match_date IS NULL THEN 7
+    ELSE GREATEST(1, (match_date - prev_date))
+  END AS rest_days
+FROM lagged;
+
+-- Views: last5 form per team per match (clean namespace)
+CREATE OR REPLACE VIEW nrl_clean.team_form_v AS
+WITH team_results AS (
+  SELECT season, match_date, match_id, home_team AS team,
+         CASE WHEN home_score IS NULL OR away_score IS NULL THEN NULL
+              WHEN home_score > away_score THEN 1 ELSE 0 END AS win
+  FROM nrl_clean.matches_raw
+  UNION ALL
+  SELECT season, match_date, match_id, away_team AS team,
+         CASE WHEN home_score IS NULL OR away_score IS NULL THEN NULL
+              WHEN away_score > home_score THEN 1 ELSE 0 END AS win
+  FROM nrl_clean.matches_raw
+),
+win_hist AS (
+  SELECT
+    season, match_id, team, match_date,
+    AVG(win) OVER (PARTITION BY season, team ORDER BY match_date ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING) AS win_pct_last5
+  FROM team_results
+)
+SELECT match_id, season, team, COALESCE(win_pct_last5, 0.5) AS win_pct_last5
+FROM win_hist;
+
 -- Core fixtures/results
 CREATE TABLE IF NOT EXISTS nrl.matches_raw (
   match_id text PRIMARY KEY,
@@ -142,6 +228,33 @@ CREATE TABLE IF NOT EXISTS nrl.model_registry (
 );
 
 CREATE INDEX IF NOT EXISTS ix_model_registry_champion ON nrl.model_registry(model_key, is_champion);
+
+
+-- Run manifests for reproducible baseline rebuilds
+CREATE TABLE IF NOT EXISTS nrl.run_manifest (
+  id bigserial PRIMARY KEY,
+  run_type text NOT NULL,
+  run_started_at timestamptz NOT NULL,
+  truth_schema text NOT NULL,
+  ops_schema text NOT NULL,
+  seasons text NOT NULL,
+  payload jsonb NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_run_manifest_started_at
+  ON nrl.run_manifest(run_started_at DESC);
+
+-- Data quality gate report history
+CREATE TABLE IF NOT EXISTS nrl.data_quality_reports (
+  id bigserial PRIMARY KEY,
+  checked_at timestamptz NOT NULL,
+  seasons text NOT NULL,
+  ok boolean NOT NULL,
+  report_json jsonb NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_data_quality_reports_checked_at
+  ON nrl.data_quality_reports(checked_at DESC);
 
 -- Views: rest days per team per match
 CREATE OR REPLACE VIEW nrl.team_rest_v AS

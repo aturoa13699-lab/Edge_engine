@@ -9,6 +9,8 @@ from scipy.optimize import minimize
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Engine
 
+from .schema_router import ops_table
+
 logger = logging.getLogger("nrl-pillar1")
 
 
@@ -19,11 +21,6 @@ def _is_postgres(engine: Engine) -> bool:
         return False
 
 
-def _tbl(engine: Engine, name: str) -> str:
-    # SQLite (tests) doesn't support schema prefixes; Postgres does.
-    return f"nrl.{name}" if _is_postgres(engine) else name
-
-
 def _beta_transform(p: np.ndarray, a: float, b: float) -> np.ndarray:
     p = np.clip(p, 1e-6, 1.0 - 1e-6)
     return (p**a) / (p**a + (1.0 - p) ** b)
@@ -31,20 +28,26 @@ def _beta_transform(p: np.ndarray, a: float, b: float) -> np.ndarray:
 
 def load_latest_calibrator(engine: Engine, season: int) -> Optional[Dict]:
     """Load calibration params for a season, falling back to the most recent prior season."""
-    table = _tbl(engine, "calibration_params")
+    table = ops_table(engine, "calibration_params")
     with engine.begin() as conn:
-        row = conn.execute(
-            sql_text(
-                f"SELECT season AS cal_season, params FROM {table}"
-                f" WHERE season <= :s ORDER BY season DESC, fitted_at DESC LIMIT 1"
-            ),
-            dict(s=season),
-        ).mappings().first()
+        row = (
+            conn.execute(
+                sql_text(
+                    f"SELECT season AS cal_season, params FROM {table}"
+                    f" WHERE season <= :s ORDER BY season DESC, fitted_at DESC LIMIT 1"
+                ),
+                dict(s=season),
+            )
+            .mappings()
+            .first()
+        )
 
     if row and row.get("params") is not None:
         cal_season = row.get("cal_season")
         if cal_season is not None and int(cal_season) != season:
-            logger.info("Calibration fallback: requested S%s, using S%s", season, cal_season)
+            logger.info(
+                "Calibration fallback: requested S%s, using S%s", season, cal_season
+            )
         params = row["params"]
         if isinstance(params, str):
             return json.loads(params)
@@ -63,24 +66,35 @@ def apply_calibration(p_fair: float, params: Optional[Dict]) -> float:
     return float(np.clip(calibrated, 0.0, 1.0))
 
 
-def fit_beta_calibrator(engine: Engine, season: int, min_samples: int = 80) -> Optional[Dict]:
-    pred_table = _tbl(engine, "model_prediction")
-    cal_table = _tbl(engine, "calibration_params")
+def fit_beta_calibrator(
+    engine: Engine, season: int, min_samples: int = 80
+) -> Optional[Dict]:
+    pred_table = ops_table(engine, "model_prediction")
+    cal_table = ops_table(engine, "calibration_params")
 
     with engine.begin() as conn:
-        rows = conn.execute(
-            sql_text(
-                f"""
+        rows = (
+            conn.execute(
+                sql_text(
+                    f"""
                 SELECT p_fair, outcome_home_win
                 FROM {pred_table}
                 WHERE season=:s AND outcome_known=true AND p_fair IS NOT NULL
                 """
-            ),
-            dict(s=season),
-        ).mappings().all()
+                ),
+                dict(s=season),
+            )
+            .mappings()
+            .all()
+        )
 
     if len(rows) < min_samples:
-        logger.info("Calibration skipped for S%s — only %s samples (need %s)", season, len(rows), min_samples)
+        logger.info(
+            "Calibration skipped for S%s — only %s samples (need %s)",
+            season,
+            len(rows),
+            min_samples,
+        )
         return None
 
     p = np.array([float(r["p_fair"]) for r in rows], dtype=float)
@@ -130,5 +144,11 @@ def fit_beta_calibrator(engine: Engine, season: int, min_samples: int = 80) -> O
                 dict(s=season, p=payload),
             )
 
-    logger.info("✓ Beta calibration fitted for S%s: a=%.3f b=%.3f (Brier=%.4f)", season, a, b, float(res.fun))
+    logger.info(
+        "✓ Beta calibration fitted for S%s: a=%.3f b=%.3f (Brier=%.4f)",
+        season,
+        a,
+        b,
+        float(res.fun),
+    )
     return params

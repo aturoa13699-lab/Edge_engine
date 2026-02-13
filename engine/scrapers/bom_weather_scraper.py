@@ -44,7 +44,13 @@ def run(engine: Engine, season: int) -> None:
             wind_kmh = obs.get("wind_spd_kmh")
             rain_trace = obs.get("rain_trace")
             # crude wet flag
-            is_wet = 1 if (rain_trace not in (None, "", "0.0", "0") and float(rain_trace) > 0.0) else 0
+            is_wet = (
+                1
+                if (
+                    rain_trace not in (None, "", "0.0", "0") and float(rain_trace) > 0.0
+                )
+                else 0
+            )
             desc = obs.get("weather") or ""
         except Exception:
             continue

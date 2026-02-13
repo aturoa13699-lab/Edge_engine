@@ -12,6 +12,7 @@ logger = logging.getLogger("nrl-pillar1")
 def _playwright_available() -> bool:
     try:
         import playwright  # noqa: F401
+
         return True
     except Exception:
         return False

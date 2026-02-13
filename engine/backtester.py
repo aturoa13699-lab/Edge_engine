@@ -1,4 +1,5 @@
 """Walk-forward backtesting engine."""
+
 from __future__ import annotations
 
 import logging
@@ -9,6 +10,8 @@ from typing import Dict, List, Optional
 import numpy as np
 from sqlalchemy import bindparam, text as sql_text
 from sqlalchemy.engine import Engine
+
+from .schema_router import truth_table
 
 from .calibration import apply_calibration, load_latest_calibrator
 from .deploy_engine import _fetch_live_feature_row, _heuristic_p, _ml_p
@@ -38,7 +41,9 @@ class BacktestResult:
 
     @property
     def roi(self) -> float:
-        return (self.total_pnl / self.total_staked * 100) if self.total_staked > 0 else 0.0
+        return (
+            (self.total_pnl / self.total_staked * 100) if self.total_staked > 0 else 0.0
+        )
 
     @property
     def hit_rate(self) -> float:
@@ -87,10 +92,11 @@ def run_backtest(
     if max_stake_frac is None:
         max_stake_frac = float(os.getenv("MAX_STAKE_FRAC", "0.03"))
 
-    base_sql = """
+    matches_table = truth_table(engine, "matches_raw")
+    base_sql = f"""
         SELECT m.match_id, m.season, m.round_num, m.match_date,
                m.home_team, m.away_team, m.home_score, m.away_score
-        FROM nrl.matches_raw m
+        FROM {matches_table} m
         WHERE m.season = :s
           AND m.home_score IS NOT NULL
           AND m.away_score IS NOT NULL
@@ -99,9 +105,9 @@ def run_backtest(
 
     if rounds:
         base_sql += "  AND m.round_num IN :rounds"
-        query = sql_text(base_sql + " ORDER BY m.round_num, m.match_date, m.match_id").bindparams(
-            bindparam("rounds", expanding=True)
-        )
+        query = sql_text(
+            base_sql + " ORDER BY m.round_num, m.match_date, m.match_id"
+        ).bindparams(bindparam("rounds", expanding=True))
         params["rounds"] = rounds
     else:
         query = sql_text(base_sql + " ORDER BY m.round_num, m.match_date, m.match_id")
@@ -111,7 +117,9 @@ def run_backtest(
 
     if not matches:
         logger.warning("No resolved matches for backtest season=%s", season)
-        return BacktestResult(initial_bankroll=initial_bankroll, final_bankroll=initial_bankroll)
+        return BacktestResult(
+            initial_bankroll=initial_bankroll, final_bankroll=initial_bankroll
+        )
 
     alpha = float(os.getenv("ML_BLEND_ALPHA", "0.65"))
     calibrator = load_latest_calibrator(engine, season)
@@ -212,18 +220,20 @@ def run_backtest(
             if drawdown > result.max_drawdown:
                 result.max_drawdown = drawdown
 
-        result.round_results.append({
-            "match_id": match_id,
-            "round_num": m["round_num"],
-            "home_team": m["home_team"],
-            "away_team": m["away_team"],
-            "p_cal": round(p_cal, 4),
-            "odds": odds_taken,
-            "stake": round(stake, 2),
-            "outcome": "win" if home_win else "loss",
-            "pnl": round(profit if home_win else -stake, 2),
-            "bankroll": round(bankroll, 2),
-        })
+        result.round_results.append(
+            {
+                "match_id": match_id,
+                "round_num": m["round_num"],
+                "home_team": m["home_team"],
+                "away_team": m["away_team"],
+                "p_cal": round(p_cal, 4),
+                "odds": odds_taken,
+                "stake": round(stake, 2),
+                "outcome": "win" if home_win else "loss",
+                "pnl": round(profit if home_win else -stake, 2),
+                "bankroll": round(bankroll, 2),
+            }
+        )
 
         logger.debug(
             "BT %s R%s: %s vs %s | p=%.3f odds=%.2f stake=%.2f => %s (bank=%.2f)",
@@ -242,10 +252,31 @@ def run_backtest(
 
     summary = result.summary()
     logger.info("Backtest complete for season %s:", season)
-    logger.info("  Bets: %s (W:%s L:%s) | Hit rate: %.1f%%", summary["total_bets"], summary["wins"], summary["losses"], summary["hit_rate_pct"])
+    logger.info(
+        "  Bets: %s (W:%s L:%s) | Hit rate: %.1f%%",
+        summary["total_bets"],
+        summary["wins"],
+        summary["losses"],
+        summary["hit_rate_pct"],
+    )
     logger.info("  P&L: $%.2f | ROI: %.2f%%", summary["total_pnl"], summary["roi_pct"])
-    logger.info("  Bankroll: $%.2f -> $%.2f | Peak: $%.2f | Max DD: %.1f%%", summary["initial_bankroll"], summary["final_bankroll"], summary["peak_bankroll"], summary["max_drawdown_pct"])
-    logger.info("  Avg Brier: %.5f | Skipped (no edge): %s", summary["avg_brier_score"], summary["no_edge_skipped"])
-    logger.info("  Guardrails — entropy: %s, edge_floor: %s, exposure_cap: %s", summary["entropy_skipped"], summary["edge_floor_skipped"], summary["exposure_capped"])
+    logger.info(
+        "  Bankroll: $%.2f -> $%.2f | Peak: $%.2f | Max DD: %.1f%%",
+        summary["initial_bankroll"],
+        summary["final_bankroll"],
+        summary["peak_bankroll"],
+        summary["max_drawdown_pct"],
+    )
+    logger.info(
+        "  Avg Brier: %.5f | Skipped (no edge): %s",
+        summary["avg_brier_score"],
+        summary["no_edge_skipped"],
+    )
+    logger.info(
+        "  Guardrails — entropy: %s, edge_floor: %s, exposure_cap: %s",
+        summary["entropy_skipped"],
+        summary["edge_floor_skipped"],
+        summary["exposure_capped"],
+    )
 
     return result
