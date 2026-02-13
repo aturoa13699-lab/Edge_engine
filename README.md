@@ -68,6 +68,17 @@ Rule: Merge gate is only **PASS** if the final two commands are `ruff format . -
 2. Sanity
 	•	python -m engine.run --help
 
+3. Syntax / import tripwires (fail fast)
+	•	python -m compileall -q engine
+	•	python -c "from sqlalchemy import create_engine; from engine.schema_router import ops_table, truth_table; e=create_engine('sqlite://'); print('OK', ops_table(e, 'slips'), truth_table(e, 'matches_raw'))"
+
+4. Typecheck
+	•	mypy .
+
+5. Unit tests
+	•	pytest -q
+
+6. Integration
 3. Type + Unit Tests
 	•	mypy .
 	•	pytest -q
@@ -77,6 +88,7 @@ Rule: Merge gate is only **PASS** if the final two commands are `ruff format . -
 	•	CI: `INTEGRATION_TEST=1 pytest -q tests/test_integration_pg.py` (Postgres provisioned runner)
 	•	Local: `INTEGRATION_TEST=1` must fail when `DATABASE_URL` is not PostgreSQL (fail-closed)
 
+7. FINAL LINT END-CAP (RUN LAST, NO EXCEPTIONS)
 5. FINAL LINT END-CAP (RUN LAST, NO EXCEPTIONS)
 	•	ruff format . --check
 	•	ruff check .

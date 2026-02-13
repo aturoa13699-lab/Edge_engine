@@ -125,6 +125,13 @@ def backfill_predictions(
 
 
 def label_outcomes(engine: Engine, season: int) -> Dict:
+    matches_table = truth_table(engine, "matches_raw")
+    pred_table = ops_table(engine, "model_prediction")
+    with engine.begin() as conn:
+        result = conn.execute(
+            sql_text(
+                f"""
+                UPDATE {pred_table} mp
     """
     Label already-existing predictions with outcomes from resolved matches.
     Updates model_prediction rows where outcome_known is false but scores exist.
