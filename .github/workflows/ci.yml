@@ -22,6 +22,9 @@ jobs:
       - name: Mypy
         run: mypy .
 
+      - name: Mypy
+        run: mypy .
+
       - name: Pytest
         run: pytest -q
 
