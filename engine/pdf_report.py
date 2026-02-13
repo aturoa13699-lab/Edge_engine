@@ -9,7 +9,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Image,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 from reportlab.lib import colors
 
 from sqlalchemy.engine import Engine
@@ -40,7 +47,11 @@ def _dict_to_slip(d: Dict[str, Any]) -> Slip:
 
 def _reliability_plot(pred_rows: List[Dict[str, Any]], out_path: str) -> bool:
     # needs outcome_known + outcome_home_win + calibrated_p
-    rows = [r for r in pred_rows if r.get("outcome_known") and r.get("calibrated_p") is not None]
+    rows = [
+        r
+        for r in pred_rows
+        if r.get("outcome_known") and r.get("calibrated_p") is not None
+    ]
     if len(rows) < 50:
         return False
 
@@ -73,7 +84,9 @@ def _reliability_plot(pred_rows: List[Dict[str, Any]], out_path: str) -> bool:
     return True
 
 
-def generate_weekly_audit_pdf(engine: Engine, season: int, round_num: int, out_path: str) -> str:
+def generate_weekly_audit_pdf(
+    engine: Engine, season: int, round_num: int, out_path: str
+) -> str:
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
     styles = getSampleStyleSheet()

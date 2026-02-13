@@ -1,4 +1,5 @@
 """Betting guardrails: entropy gate, edge floor, round exposure cap."""
+
 from __future__ import annotations
 
 import logging

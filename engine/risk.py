@@ -30,7 +30,9 @@ class SizingDecision:
     reason: str
 
 
-def size_stake(bankroll: float, p: float, odds: float, max_frac: float = 0.03) -> SizingDecision:
+def size_stake(
+    bankroll: float, p: float, odds: float, max_frac: float = 0.03
+) -> SizingDecision:
     raw_f = kelly_fraction(p, odds)
     f = apply_fractional_kelly(raw_f)
 

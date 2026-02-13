@@ -1,4 +1,5 @@
 """Backfill historical predictions and label outcomes."""
+
 from __future__ import annotations
 
 import logging
@@ -10,6 +11,7 @@ from sqlalchemy.engine import Engine
 
 from .calibration import apply_calibration, load_latest_calibrator
 from .deploy_engine import _fetch_live_feature_row, _heuristic_p, _ml_p
+from .schema_router import ops_table, truth_table
 
 logger = logging.getLogger("nrl-pillar1")
 
@@ -20,17 +22,13 @@ def backfill_predictions(
     rounds: Optional[List[int]] = None,
     label_outcomes: bool = True,
 ) -> Dict:
-    """
-    Backfill model_prediction rows for resolved historical matches.
+    matches_table = truth_table(engine, "matches_raw")
+    pred_table = ops_table(engine, "model_prediction")
 
-    - Generates predictions (heuristic + ML blend) for each match
-    - Labels outcomes from actual scores if label_outcomes=True
-    - Skips matches that already have predictions (idempotent)
-    """
-    base_sql = """
+    base_sql = f"""
         SELECT m.match_id, m.season, m.round_num, m.match_date,
                m.home_team, m.away_team, m.home_score, m.away_score
-        FROM nrl.matches_raw m
+        FROM {matches_table} m
         WHERE m.season = :s
           AND m.home_score IS NOT NULL
           AND m.away_score IS NOT NULL
@@ -63,11 +61,10 @@ def backfill_predictions(
     for m in matches:
         match_id = m["match_id"]
 
-        # Check if prediction already exists (idempotent)
         with engine.begin() as conn:
             existing = conn.execute(
                 sql_text(
-                    "SELECT 1 FROM nrl.model_prediction WHERE match_id = :mid AND season = :s LIMIT 1"
+                    f"SELECT 1 FROM {pred_table} WHERE match_id = :mid AND season = :s LIMIT 1"
                 ),
                 dict(mid=match_id, s=season),
             ).first()
@@ -76,36 +73,28 @@ def backfill_predictions(
             skipped += 1
             continue
 
-        # Generate prediction
         feature_row = _fetch_live_feature_row(engine, match_id)
         p_h = _heuristic_p(feature_row)
         p_ml = _ml_p(engine, feature_row)
-
-        if p_ml is None:
-            p_blend = p_h
-        else:
-            p_blend = float(alpha * p_ml + (1.0 - alpha) * p_h)
-
+        p_blend = p_h if p_ml is None else float(alpha * p_ml + (1.0 - alpha) * p_h)
         p_cal = apply_calibration(p_blend, calibrator)
 
-        # Determine outcome from actual scores
         home_win = bool(m["home_score"] > m["away_score"])
-
-        # CLV diff
         close_price = float(feature_row.get("close_price", 1.90))
         odds_taken = float(feature_row.get("odds_taken", 1.90))
         clv_diff = float(close_price - odds_taken)
 
-        # Insert prediction with outcome
         with engine.begin() as conn:
             conn.execute(
-                sql_text("""
-                    INSERT INTO nrl.model_prediction
+                sql_text(
+                    f"""
+                    INSERT INTO {pred_table}
                     (season, round_num, match_id, home_team, away_team,
                      p_fair, calibrated_p, model_version, clv_diff,
                      outcome_known, outcome_home_win)
                     VALUES (:s, :r, :mid, :h, :a, :pf, :cp, :ver, :clv, :ok, :ohw)
-                """),
+                    """
+                ),
                 dict(
                     s=season,
                     r=m["round_num"],
@@ -122,15 +111,6 @@ def backfill_predictions(
             )
 
         backfilled += 1
-        logger.info(
-            "Backfilled %s: %s vs %s (R%s) p=%.3f outcome=%s",
-            match_id[:8] if len(match_id) > 8 else match_id,
-            m["home_team"],
-            m["away_team"],
-            m["round_num"],
-            p_blend,
-            "home" if home_win else "away",
-        )
 
     result = {"season": season, "backfilled": backfilled, "skipped": skipped}
     logger.info("Backfill complete: %s", result)
@@ -138,23 +118,23 @@ def backfill_predictions(
 
 
 def label_outcomes(engine: Engine, season: int) -> Dict:
-    """
-    Label already-existing predictions with outcomes from resolved matches.
-    Updates model_prediction rows where outcome_known is false but scores exist.
-    """
+    matches_table = truth_table(engine, "matches_raw")
+    pred_table = ops_table(engine, "model_prediction")
     with engine.begin() as conn:
         result = conn.execute(
-            sql_text("""
-                UPDATE nrl.model_prediction mp
+            sql_text(
+                f"""
+                UPDATE {pred_table} mp
                 SET outcome_known = true,
                     outcome_home_win = (mr.home_score > mr.away_score)
-                FROM nrl.matches_raw mr
+                FROM {matches_table} mr
                 WHERE mp.match_id = mr.match_id
                   AND mp.season = :s
                   AND mp.outcome_known = false
                   AND mr.home_score IS NOT NULL
                   AND mr.away_score IS NOT NULL
-            """),
+                """
+            ),
             dict(s=season),
         )
         updated = result.rowcount
