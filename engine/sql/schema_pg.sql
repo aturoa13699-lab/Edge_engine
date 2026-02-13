@@ -143,6 +143,18 @@ CREATE TABLE IF NOT EXISTS nrl.model_registry (
 
 CREATE INDEX IF NOT EXISTS ix_model_registry_champion ON nrl.model_registry(model_key, is_champion);
 
+-- Data quality gate report history
+CREATE TABLE IF NOT EXISTS nrl.data_quality_reports (
+  id bigserial PRIMARY KEY,
+  checked_at timestamptz NOT NULL,
+  seasons text NOT NULL,
+  ok boolean NOT NULL,
+  report_json jsonb NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_data_quality_reports_checked_at
+  ON nrl.data_quality_reports(checked_at DESC);
+
 -- Views: rest days per team per match
 CREATE OR REPLACE VIEW nrl.team_rest_v AS
 WITH team_matches AS (
