@@ -128,12 +128,6 @@ def cmd_init(engine):
     apply_schema(engine)
 
 
-def cmd_schema_parity_smoke(engine):
-    from .schema_parity import enforce_truth_schema_parity_smoke
-
-    return enforce_truth_schema_parity_smoke(engine)
-
-
 def cmd_rectify_clean(
     engine,
     seasons: list[int],
@@ -171,8 +165,6 @@ def parse_args():
             "label-outcomes",
             "backtest",
             "seed",
-            "rectify-clean",
-            "schema-parity-smoke",
         ],
     )
     ap.add_argument(
@@ -283,8 +275,6 @@ def main():
         )
     elif args.command == "seed":
         cmd_seed(engine, season=args.season)
-    elif args.command == "schema-parity-smoke":
-        cmd_schema_parity_smoke(engine)
     elif args.command == "rectify-clean":
         cmd_rectify_clean(
             engine,

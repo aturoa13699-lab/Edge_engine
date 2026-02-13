@@ -136,12 +136,3 @@ def rectify_clean(
         authoritative_payload_path=authoritative_payload_path,
     )
     return {"ok": True, "result": result.to_dict()}
-
-
-@app.get("/schema/parity-smoke")
-def schema_parity_smoke():
-    from .schema_parity import run_truth_schema_parity_smoke
-
-    engine = get_engine()
-    report = run_truth_schema_parity_smoke(engine)
-    return {"ok": report.ok, "report": report.to_dict()}
