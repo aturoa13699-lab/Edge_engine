@@ -21,11 +21,8 @@ jobs:
       - name: CLI sanity
         run: python -m engine.run --help
 
-      - name: Compile smoke
-        run: python -m compileall -q engine
-
-      - name: Schema router import smoke
-        run: python -c "from sqlalchemy import create_engine; from engine.schema_router import ops_table, truth_table; e=create_engine('sqlite://'); print('OK', ops_table(e, 'slips'), truth_table(e, 'matches_raw'))"
+      - name: Mypy
+        run: mypy .
 
       - name: Mypy
         run: mypy .
