@@ -28,15 +28,24 @@ def _dict_to_slip(d) -> Slip:
         stake=float(d["stake"]),
         ev=float(d["ev"]),
         status=d.get("status", "pending"),
-        model_version=d.get("model_version", os.getenv("MODEL_VERSION", "v2026-02-poisson-v1")),
+        model_version=d.get(
+            "model_version", os.getenv("MODEL_VERSION", "v2026-02-poisson-v1")
+        ),
         reason=d.get("reason"),
     )
 
 
-def send_round_slip_cards(engine: Engine, season: int, round_num: int, status: str = "pending") -> None:
+def send_round_slip_cards(
+    engine: Engine, season: int, round_num: int, status: str = "pending"
+) -> None:
     slips_dicts = fetch_round_slips(engine, season, round_num, status=status)
     if not slips_dicts:
-        logger.info("No slips to notify for season=%s round=%s status=%s", season, round_num, status)
+        logger.info(
+            "No slips to notify for season=%s round=%s status=%s",
+            season,
+            round_num,
+            status,
+        )
         return
 
     slips: List[Slip] = [_dict_to_slip(s) for s in slips_dicts]
@@ -50,7 +59,14 @@ def send_round_slip_cards(engine: Engine, season: int, round_num: int, status: s
         png_path = generate_styled_summary_image(slip, tmp.name)
         tmp_paths.append(png_path)
         attachments.append(
-            ("files", (f"slip_{slip.portfolio_id[:8]}.png", open(png_path, "rb"), "image/png"))
+            (
+                "files",
+                (
+                    f"slip_{slip.portfolio_id[:8]}.png",
+                    open(png_path, "rb"),
+                    "image/png",
+                ),
+            )
         )
 
     embeds = [slip_to_embed(s) for s in slips]

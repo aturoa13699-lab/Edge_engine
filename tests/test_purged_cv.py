@@ -21,7 +21,9 @@ def test_purged_cv_returns_valid_metrics():
     X = pd.DataFrame({"a": rng.randn(n), "b": rng.randn(n)})
     y = pd.Series(rng.randint(0, 2, n))
 
-    metrics = _purged_walk_forward_cv(_DummyClassifier(), X, y, n_splits=5, embargo_pct=0.02)
+    metrics = _purged_walk_forward_cv(
+        _DummyClassifier(), X, y, n_splits=5, embargo_pct=0.02
+    )
 
     assert "cv_brier_mean" in metrics
     assert "cv_logloss_mean" in metrics
@@ -47,5 +49,7 @@ def test_purged_cv_embargo_creates_gap():
     y = pd.Series([0, 1] * (n // 2))
 
     # With 10% embargo on 200 samples = 20 sample gap
-    metrics = _purged_walk_forward_cv(_DummyClassifier(), X, y, n_splits=3, embargo_pct=0.10)
+    metrics = _purged_walk_forward_cv(
+        _DummyClassifier(), X, y, n_splits=3, embargo_pct=0.10
+    )
     assert metrics["cv_brier_mean"] == 0.25  # dummy always predicts 0.5

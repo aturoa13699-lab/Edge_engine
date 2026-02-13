@@ -4,6 +4,7 @@ Generates realistic synthetic data for all core tables so the full
 pipeline (train -> backfill -> calibrate -> backtest -> deploy) works
 end-to-end.
 """
+
 from __future__ import annotations
 
 import logging
@@ -102,7 +103,10 @@ COACH_STYLE_SCORES = {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _win_prob(home_rating: float, away_rating: float, home_advantage: float = 50.0) -> float:
+
+def _win_prob(
+    home_rating: float, away_rating: float, home_advantage: float = 50.0
+) -> float:
     diff = home_rating - away_rating + home_advantage
     return 1.0 / (1.0 + math.pow(10.0, -diff / 400.0))
 
@@ -111,7 +115,9 @@ def _season_ratings(season: int, rng: random.Random) -> Dict[str, float]:
     return {t: r + rng.gauss(0, 30) for t, r in BASE_RATINGS.items()}
 
 
-def _generate_fixtures(season: int, num_rounds: int, rng: random.Random) -> List[Dict[str, Any]]:
+def _generate_fixtures(
+    season: int, num_rounds: int, rng: random.Random
+) -> List[Dict[str, Any]]:
     fixtures: List[Dict[str, Any]] = []
     season_start = date(season, 3, 7)
 
@@ -126,21 +132,25 @@ def _generate_fixtures(season: int, num_rounds: int, rng: random.Random) -> List
             away = shuffled[i + 1]
             game_idx = i // 2
             game_day_offset = game_idx % 4  # Thu-Sun spread
-            fixtures.append({
-                "match_id": f"NRL_{season}_R{round_num:02d}_M{game_idx + 1:02d}",
-                "season": season,
-                "round_num": round_num,
-                "match_date": round_date + timedelta(days=game_day_offset),
-                "venue": HOME_VENUES.get(home, "Neutral Venue"),
-                "home_team": home,
-                "away_team": away,
-                "home_score": None,
-                "away_score": None,
-            })
+            fixtures.append(
+                {
+                    "match_id": f"NRL_{season}_R{round_num:02d}_M{game_idx + 1:02d}",
+                    "season": season,
+                    "round_num": round_num,
+                    "match_date": round_date + timedelta(days=game_day_offset),
+                    "venue": HOME_VENUES.get(home, "Neutral Venue"),
+                    "home_team": home,
+                    "away_team": away,
+                    "home_score": None,
+                    "away_score": None,
+                }
+            )
     return fixtures
 
 
-def _generate_scores(fixtures: List[Dict], ratings: Dict[str, float], rng: random.Random) -> None:
+def _generate_scores(
+    fixtures: List[Dict], ratings: Dict[str, float], rng: random.Random
+) -> None:
     for f in fixtures:
         hr = ratings.get(f["home_team"], 1500)
         ar = ratings.get(f["away_team"], 1500)
@@ -161,7 +171,9 @@ def _generate_scores(fixtures: List[Dict], ratings: Dict[str, float], rng: rando
         f["away_score"] = min(aws, 56)
 
 
-def _generate_odds(fixtures: List[Dict], ratings: Dict[str, float], rng: random.Random) -> List[Dict]:
+def _generate_odds(
+    fixtures: List[Dict], ratings: Dict[str, float], rng: random.Random
+) -> List[Dict]:
     rows: List[Dict] = []
     overround = 1.05
     for f in fixtures:
@@ -176,19 +188,22 @@ def _generate_odds(fixtures: List[Dict], ratings: Dict[str, float], rng: random.
         a_odds = max(1.05, min(a_odds, 15.0))
 
         for team, opening in [(f["home_team"], h_odds), (f["away_team"], a_odds)]:
-            rows.append({
-                "match_id": f["match_id"],
-                "team": team,
-                "opening_price": opening,
-                "close_price": round(opening * (0.97 + 0.06 * rng.random()), 2),
-                "last_price": round(opening * (0.96 + 0.08 * rng.random()), 2),
-            })
+            rows.append(
+                {
+                    "match_id": f["match_id"],
+                    "team": team,
+                    "opening_price": opening,
+                    "close_price": round(opening * (0.97 + 0.06 * rng.random()), 2),
+                    "last_price": round(opening * (0.96 + 0.08 * rng.random()), 2),
+                }
+            )
     return rows
 
 
 # ---------------------------------------------------------------------------
 # Insert helpers
 # ---------------------------------------------------------------------------
+
 
 def _insert_matches(engine: Engine, fixtures: List[Dict]) -> int:
     affected = 0
@@ -205,10 +220,15 @@ def _insert_matches(engine: Engine, fixtures: List[Dict]) -> int:
                         updated_at = now()
                 """),
                 dict(
-                    mid=f["match_id"], s=f["season"], r=f["round_num"],
-                    d=f["match_date"], v=f["venue"],
-                    h=f["home_team"], a=f["away_team"],
-                    hs=f["home_score"], as_=f["away_score"],
+                    mid=f["match_id"],
+                    s=f["season"],
+                    r=f["round_num"],
+                    d=f["match_date"],
+                    v=f["venue"],
+                    h=f["home_team"],
+                    a=f["away_team"],
+                    hs=f["home_score"],
+                    as_=f["away_score"],
                 ),
             )
             affected += result.rowcount
@@ -230,8 +250,11 @@ def _insert_odds(engine: Engine, odds_rows: List[Dict]) -> int:
                         updated_at = now()
                 """),
                 dict(
-                    mid=o["match_id"], t=o["team"],
-                    op=o["opening_price"], cp=o["close_price"], lp=o["last_price"],
+                    mid=o["match_id"],
+                    t=o["team"],
+                    op=o["opening_price"],
+                    cp=o["close_price"],
+                    lp=o["last_price"],
                 ),
             )
             affected += result.rowcount
@@ -285,18 +308,30 @@ def _insert_injuries(engine: Engine, season: int, rng: random.Random) -> int:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def get_table_counts(engine: Engine) -> Dict[str, int]:
     """Return row counts for every core NRL table."""
     tables = [
-        "matches_raw", "odds", "team_ratings", "coach_profile",
-        "injuries_current", "weather_daily", "model_prediction",
-        "slips", "calibration_params", "model_registry",
+        "matches_raw",
+        "odds",
+        "team_ratings",
+        "coach_profile",
+        "injuries_current",
+        "weather_daily",
+        "model_prediction",
+        "slips",
+        "calibration_params",
+        "model_registry",
     ]
     counts: Dict[str, int] = {}
     for t in tables:
         try:
             with engine.begin() as conn:
-                row = conn.execute(sql_text(f"SELECT count(*) AS n FROM nrl.{t}")).mappings().first()
+                row = (
+                    conn.execute(sql_text(f"SELECT count(*) AS n FROM nrl.{t}"))
+                    .mappings()
+                    .first()
+                )
                 counts[t] = int(row["n"]) if row else 0
         except Exception:
             counts[t] = -1  # table may not exist
@@ -318,8 +353,11 @@ def seed_all(
         historical_seasons = [2022, 2023, 2024, 2025]
 
     totals: Dict[str, int] = {
-        "matches": 0, "odds": 0, "team_ratings": 0,
-        "coach_profiles": 0, "injuries": 0,
+        "matches": 0,
+        "odds": 0,
+        "team_ratings": 0,
+        "coach_profiles": 0,
+        "injuries": 0,
     }
 
     # --- Historical seasons (with scores) ---
@@ -335,7 +373,9 @@ def seed_all(
         totals["team_ratings"] += _insert_team_ratings(engine, season, ratings)
         totals["coach_profiles"] += _insert_coach_profiles(engine, season)
         totals["injuries"] += _insert_injuries(engine, season, rng)
-        logger.info("Seeded season %s: %s matches, %s odds", season, len(fixtures), len(odds))
+        logger.info(
+            "Seeded season %s: %s matches, %s odds", season, len(fixtures), len(odds)
+        )
 
     # --- Current season (fixtures only, no scores) ---
     rng = random.Random(current_season * 31 + 7)
@@ -348,7 +388,11 @@ def seed_all(
     totals["team_ratings"] += _insert_team_ratings(engine, current_season, ratings)
     totals["coach_profiles"] += _insert_coach_profiles(engine, current_season)
     totals["injuries"] += _insert_injuries(engine, current_season, rng)
-    logger.info("Seeded season %s (current): %s fixtures (no scores)", current_season, len(fixtures))
+    logger.info(
+        "Seeded season %s (current): %s fixtures (no scores)",
+        current_season,
+        len(fixtures),
+    )
 
     logger.info("Seed complete: %s", totals)
     return totals
