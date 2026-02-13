@@ -4,21 +4,29 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Engine
 
+from .schema_router import ops_table
 
-def fetch_round_slips(engine: Engine, season: int, round_num: int, status: str = "pending") -> List[Dict[str, Any]]:
-    """Fetch slips for a specific season/round filtered by status."""
+
+def fetch_round_slips(
+    engine: Engine, season: int, round_num: int, status: str = "pending"
+) -> List[Dict[str, Any]]:
+    slips_table = ops_table(engine, "slips")
     with engine.begin() as conn:
-        rows = conn.execute(
-            sql_text(
-                """
-                SELECT portfolio_id, slip_json, status, created_at
-                FROM nrl.slips
-                WHERE season = :s AND round_num = :r AND status = :st
-                ORDER BY created_at DESC
-                """
-            ),
-            dict(s=season, r=round_num, st=status),
-        ).mappings().all()
+        rows = (
+            conn.execute(
+                sql_text(
+                    f"""
+                    SELECT portfolio_id, slip_json, status, created_at
+                    FROM {slips_table}
+                    WHERE season = :s AND round_num = :r AND status = :st
+                    ORDER BY created_at DESC
+                    """
+                ),
+                dict(s=season, r=round_num, st=status),
+            )
+            .mappings()
+            .all()
+        )
 
     slips: List[Dict[str, Any]] = []
     for row in rows:
@@ -30,19 +38,23 @@ def fetch_round_slips(engine: Engine, season: int, round_num: int, status: str =
 
 
 def fetch_recent_slips(engine: Engine, limit: int = 25) -> List[Dict[str, Any]]:
-    """Fetch recent slip JSON blobs (any status)."""
+    slips_table = ops_table(engine, "slips")
     with engine.begin() as conn:
-        rows = conn.execute(
-            sql_text(
-                """
-                SELECT slip_json
-                FROM nrl.slips
-                ORDER BY created_at DESC
-                LIMIT :n
-                """
-            ),
-            dict(n=limit),
-        ).mappings().all()
+        rows = (
+            conn.execute(
+                sql_text(
+                    f"""
+                    SELECT slip_json
+                    FROM {slips_table}
+                    ORDER BY created_at DESC
+                    LIMIT :n
+                    """
+                ),
+                dict(n=limit),
+            )
+            .mappings()
+            .all()
+        )
 
     out: List[Dict[str, Any]] = []
     for r in rows:
@@ -54,31 +66,32 @@ def fetch_recent_slips(engine: Engine, limit: int = 25) -> List[Dict[str, Any]]:
 
 
 def fetch_recent_predictions(engine: Engine, limit: int = 50) -> List[Dict[str, Any]]:
-    """Fetch recent model predictions for reporting/audit."""
+    pred_table = ops_table(engine, "model_prediction")
     with engine.begin() as conn:
-        rows = conn.execute(
-            sql_text(
-                """
-                SELECT
-                  season, round_num, match_id, home_team, away_team,
-                  p_fair, calibrated_p, model_version, clv_diff,
-                  outcome_known, outcome_home_win, created_at
-                FROM nrl.model_prediction
-                ORDER BY created_at DESC
-                LIMIT :n
-                """
-            ),
-            dict(n=limit),
-        ).mappings().all()
+        rows = (
+            conn.execute(
+                sql_text(
+                    f"""
+                    SELECT
+                      season, round_num, match_id, home_team, away_team,
+                      p_fair, calibrated_p, model_version, clv_diff,
+                      outcome_known, outcome_home_win, created_at
+                    FROM {pred_table}
+                    ORDER BY created_at DESC
+                    LIMIT :n
+                    """
+                ),
+                dict(n=limit),
+            )
+            .mappings()
+            .all()
+        )
     return [dict(r) for r in rows]
 
 
-def fetch_calibration_for_season(engine: Engine, season: int) -> Optional[Dict[str, Any]]:
-    """Fetch calibration params for a season, with fallback to prior seasons.
-
-    Delegates to load_latest_calibrator which searches for the most recent
-    calibration at or before the requested season.
-    """
+def fetch_calibration_for_season(
+    engine: Engine, season: int
+) -> Optional[Dict[str, Any]]:
     from .calibration import load_latest_calibrator
 
     return load_latest_calibrator(engine, season)

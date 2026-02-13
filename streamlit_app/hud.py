@@ -1,4 +1,5 @@
 """NRL Edge Engine — Operational Dashboard."""
+
 import json
 import os
 import sys
@@ -19,6 +20,7 @@ from engine.types import Slip  # noqa: E402
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
+
 
 def _engine():
     db_url = os.getenv("DATABASE_URL")
@@ -42,9 +44,16 @@ def _safe_scalar(engine, sql, params=None):
 
 def _get_table_counts(engine):
     tables = [
-        "matches_raw", "odds", "team_ratings", "coach_profile",
-        "injuries_current", "weather_daily", "model_prediction",
-        "slips", "calibration_params", "model_registry",
+        "matches_raw",
+        "odds",
+        "team_ratings",
+        "coach_profile",
+        "injuries_current",
+        "weather_daily",
+        "model_prediction",
+        "slips",
+        "calibration_params",
+        "model_registry",
     ]
     counts = {}
     for t in tables:
@@ -88,7 +97,9 @@ with st.sidebar:
     st.title("NRL Edge Engine")
     st.caption("v1.1 — Goldmaster CML")
     st.divider()
-    season = st.number_input("Season", min_value=2020, max_value=2030, value=2026, step=1)
+    season = st.number_input(
+        "Season", min_value=2020, max_value=2030, value=2026, step=1
+    )
     round_num = st.number_input("Round", min_value=1, max_value=30, value=1, step=1)
     st.divider()
 
@@ -144,6 +155,7 @@ with tab_status:
         st.subheader("Champion Model")
         try:
             from engine.model_registry import get_champion
+
             champ = get_champion(eng, "nrl_h2h_xgb")
             if champ:
                 st.write(f"**Version:** `{champ['version']}`")
@@ -160,6 +172,7 @@ with tab_status:
         st.subheader("Calibration")
         try:
             from engine.reporting import fetch_calibration_for_season
+
             cal = fetch_calibration_for_season(eng, season)
             if cal:
                 fitted_on = cal.get("fitted_on", "N/A")
@@ -168,7 +181,9 @@ with tab_status:
                 st.write(f"**b:** {cal.get('b', 'N/A'):.4f}")
                 st.write(f"**Brier Loss:** {cal.get('brier_loss', 'N/A'):.5f}")
             else:
-                st.info("No calibration fitted yet. Run the Pipeline to fit calibration.")
+                st.info(
+                    "No calibration fitted yet. Run the Pipeline to fit calibration."
+                )
         except Exception:
             st.info("Run Init to set up the database schema first.")
 
@@ -176,8 +191,9 @@ with tab_status:
     st.subheader(f"Matches — Season {season}")
     try:
         with eng.begin() as conn:
-            rows = conn.execute(
-                text("""
+            rows = (
+                conn.execute(
+                    text("""
                     SELECT round_num, match_date, home_team, away_team,
                            home_score, away_score
                     FROM nrl.matches_raw
@@ -185,8 +201,11 @@ with tab_status:
                     ORDER BY round_num, match_date
                     LIMIT 50
                 """),
-                dict(s=season),
-            ).mappings().all()
+                    dict(s=season),
+                )
+                .mappings()
+                .all()
+            )
         if rows:
             df = pd.DataFrame([dict(r) for r in rows])
             df.columns = ["Round", "Date", "Home", "Away", "H Score", "A Score"]
@@ -217,6 +236,7 @@ with tab_pipeline:
             with st.spinner("Applying schema..."):
                 try:
                     from engine.run import apply_schema
+
                     apply_schema(eng)
                     st.success("Schema applied.")
                 except Exception as e:
@@ -227,6 +247,7 @@ with tab_pipeline:
             with st.spinner("Seeding historical data..."):
                 try:
                     from engine.seed_data import seed_all
+
                     result = seed_all(
                         eng,
                         historical_seasons=[2022, 2023, 2024, 2025],
@@ -241,6 +262,7 @@ with tab_pipeline:
             with st.spinner("Training XGBoost model (may take a minute)..."):
                 try:
                     from engine.model_trainer import train_model
+
                     out = train_model(eng, seasons=[2022, 2023, 2024, 2025])
                     if out:
                         m = out["metrics"]
@@ -261,6 +283,7 @@ with tab_pipeline:
             with st.spinner("Backfilling predictions..."):
                 try:
                     from engine.backfill import backfill_predictions
+
                     total_bf = 0
                     for s in [2022, 2023, 2024, 2025]:
                         r = backfill_predictions(eng, season=s)
@@ -274,6 +297,7 @@ with tab_pipeline:
             with st.spinner("Fitting beta calibrator for all historical seasons..."):
                 try:
                     from engine.calibration import fit_beta_calibrator
+
                     fitted_any = False
                     for cal_season in [2022, 2023, 2024, 2025]:
                         params = fit_beta_calibrator(eng, cal_season)
@@ -285,7 +309,9 @@ with tab_pipeline:
                             )
                             fitted_any = True
                     if not fitted_any:
-                        st.warning("Need 80+ labelled predictions per season. Backfill first.")
+                        st.warning(
+                            "Need 80+ labelled predictions per season. Backfill first."
+                        )
                 except Exception as e:
                     st.error(f"Calibration failed: {e}")
 
@@ -294,6 +320,7 @@ with tab_pipeline:
             with st.spinner("Running backtest..."):
                 try:
                     from engine.backtester import run_backtest
+
                     bt = run_backtest(eng, season=season - 1, initial_bankroll=1000.0)
                     st.session_state["backtest_result"] = bt.summary()
                     st.session_state["backtest_bets"] = bt.round_results
@@ -318,6 +345,7 @@ with tab_pipeline:
             with st.spinner("Running scrapers..."):
                 try:
                     from engine.run import cmd_scrapers
+
                     cmd_scrapers(eng, season=season)
                     st.success("Scrapers complete.")
                 except Exception as e:
@@ -328,7 +356,10 @@ with tab_pipeline:
             with st.spinner(f"Evaluating R{round_num}..."):
                 try:
                     from engine.deploy_engine import evaluate_round
-                    evaluate_round(eng, season=season, round_num=round_num, dry_run=False)
+
+                    evaluate_round(
+                        eng, season=season, round_num=round_num, dry_run=False
+                    )
                     st.success(f"Round {round_num} deployed! Check the Slips tab.")
                 except Exception as e:
                     st.error(f"Deploy failed: {e}")
@@ -347,10 +378,12 @@ with tab_pipeline:
         try:
             status_box.write("1/5 — Initializing database...")
             from engine.run import apply_schema
+
             apply_schema(eng)
 
             status_box.write("2/5 — Seeding historical data...")
             from engine.seed_data import seed_all
+
             seed_result = seed_all(
                 eng,
                 historical_seasons=[2022, 2023, 2024, 2025],
@@ -362,6 +395,7 @@ with tab_pipeline:
 
             status_box.write("3/5 — Training ML model...")
             from engine.model_trainer import train_model
+
             train_out = train_model(eng, seasons=[2022, 2023, 2024, 2025])
             if train_out:
                 status_box.write(
@@ -373,12 +407,14 @@ with tab_pipeline:
 
             status_box.write("4/5 — Backfilling predictions...")
             from engine.backfill import backfill_predictions
+
             for s in [2022, 2023, 2024, 2025]:
                 bf = backfill_predictions(eng, season=s)
                 status_box.write(f"   S{s}: {bf['backfilled']} backfilled")
 
             status_box.write("5/5 — Fitting calibration for all historical seasons...")
             from engine.calibration import fit_beta_calibrator
+
             cal_fitted = 0
             for cal_season in [2022, 2023, 2024, 2025]:
                 cal = fit_beta_calibrator(eng, cal_season)
@@ -415,6 +451,7 @@ with tab_backtest:
         with st.spinner(f"Backtesting season {bt_season}..."):
             try:
                 from engine.backtester import run_backtest
+
                 bt = run_backtest(eng, season=bt_season, initial_bankroll=bt_bankroll)
                 st.session_state["backtest_result"] = bt.summary()
                 st.session_state["backtest_bets"] = bt.round_results
@@ -443,8 +480,16 @@ with tab_backtest:
             st.subheader("Bet Details")
             df = pd.DataFrame(bets)
             df.columns = [
-                "Match", "Round", "Home", "Away", "P(cal)",
-                "Odds", "Stake", "Result", "P&L", "Bankroll",
+                "Match",
+                "Round",
+                "Home",
+                "Away",
+                "P(cal)",
+                "Odds",
+                "Stake",
+                "Result",
+                "P&L",
+                "Bankroll",
             ]
             st.dataframe(
                 df,
@@ -479,16 +524,20 @@ with tab_slips:
     rows = []
     try:
         with eng.begin() as conn:
-            rs = conn.execute(
-                text("""
+            rs = (
+                conn.execute(
+                    text("""
                     SELECT slip_json
                     FROM nrl.slips
                     WHERE status = :st
                     ORDER BY created_at DESC
                     LIMIT :n
                 """),
-                dict(st=slip_status, n=slip_limit),
-            ).mappings().all()
+                    dict(st=slip_status, n=slip_limit),
+                )
+                .mappings()
+                .all()
+            )
 
         for r in rs:
             sj = r["slip_json"]
