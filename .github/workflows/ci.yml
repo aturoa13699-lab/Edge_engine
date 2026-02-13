@@ -16,11 +16,21 @@ jobs:
       - name: Install
         run: pip install -r requirements-dev.txt
 
-      - name: Ruff
-        run: ruff check .
+      - name: CLI sanity
+        run: python -m engine.run --help
+
+      - name: Mypy
+        run: mypy .
 
       - name: Mypy
         run: mypy .
 
       - name: Pytest
         run: pytest -q
+
+      # FINAL LINT END-CAP (must be last)
+      - name: Ruff format (check)
+        run: ruff format . --check
+
+      - name: Ruff check
+        run: ruff check .

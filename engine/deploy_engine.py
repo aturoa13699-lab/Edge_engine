@@ -195,6 +195,8 @@ def evaluate_match_and_decide(
     dry_run: bool,
     exposure_tracker: Optional[RoundExposureTracker] = None,
 ) -> Tuple[Slip, Dict[str, Any]]:
+    pred_table = ops_table(engine, "model_prediction")
+    slips_table = ops_table(engine, "slips")
     feature_row = _fetch_live_feature_row(engine, match_id)
 
     p_h = _heuristic_p(feature_row)
@@ -270,8 +272,8 @@ def evaluate_match_and_decide(
     with engine.begin() as conn:
         conn.execute(
             sql_text(
-                """
-                INSERT INTO nrl.model_prediction
+                f"""
+                INSERT INTO {pred_table}
                 (season, round_num, match_id, home_team, away_team, p_fair, calibrated_p, model_version, clv_diff)
                 VALUES (:s,:r,:mid,:h,:a,:pf,:cp,:ver,:clv)
                 """
@@ -291,8 +293,8 @@ def evaluate_match_and_decide(
 
         conn.execute(
             sql_text(
-                """
-                INSERT INTO nrl.slips (portfolio_id, season, round_num, slip_json, status)
+                f"""
+                INSERT INTO {slips_table} (portfolio_id, season, round_num, slip_json, status)
                 VALUES (:pid, :s, :r, CAST(:sj AS jsonb), :st)
                 ON CONFLICT (portfolio_id) DO NOTHING
                 """
