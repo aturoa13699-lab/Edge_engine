@@ -17,6 +17,7 @@ from sqlalchemy.engine import Engine
 from .calibration import apply_calibration, load_latest_calibrator
 from .guardrails import RoundExposureTracker, passes_edge_floor, passes_entropy_gate
 from .model_registry import get_champion
+from .schema_router import truth_table, truth_view
 from .risk import size_stake
 from .types import Slip
 
@@ -28,26 +29,36 @@ def _sigmoid(x: float) -> float:
 
 
 def _fetch_match(engine: Engine, match_id: str) -> Optional[Dict[str, Any]]:
+    matches_table = truth_table(engine, "matches_raw")
     with engine.begin() as conn:
-        row = conn.execute(
-            sql_text(
-                """
+        row = (
+            conn.execute(
+                sql_text(
+                    f"""
                 SELECT match_id, season, round_num, match_date, venue, home_team, away_team
-                FROM nrl.matches_raw
+                FROM {matches_table}
                 WHERE match_id=:mid
                 """
-            ),
-            dict(mid=match_id),
-        ).mappings().first()
+                ),
+                dict(mid=match_id),
+            )
+            .mappings()
+            .first()
+        )
     return dict(row) if row else None
 
 
 def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
     # All features are defined in schema_pg.sql (tables/views).
+    matches_table = truth_table(engine, "matches_raw")
+    odds_table = truth_table(engine, "odds")
+    rest_view = truth_view(engine, "team_rest_v")
+    form_view = truth_view(engine, "team_form_v")
     with engine.begin() as conn:
-        row = conn.execute(
-            sql_text(
-                """
+        row = (
+            conn.execute(
+                sql_text(
+                    f"""
                 SELECT
                   m.season, m.match_id, m.match_date, m.venue, m.home_team, m.away_team,
 
@@ -73,12 +84,12 @@ def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
                   COALESCE(w.temp_c, 20.0) AS temp_c,
                   COALESCE(w.wind_speed_kmh, 10.0) AS wind_speed_kmh
 
-                FROM nrl.matches_raw m
-                LEFT JOIN nrl.team_rest_v rh ON rh.match_id=m.match_id AND rh.team=m.home_team
-                LEFT JOIN nrl.team_rest_v ra ON ra.match_id=m.match_id AND ra.team=m.away_team
+                FROM {matches_table} m
+                LEFT JOIN {rest_view} rh ON rh.match_id=m.match_id AND rh.team=m.home_team
+                LEFT JOIN {rest_view} ra ON ra.match_id=m.match_id AND ra.team=m.away_team
 
-                LEFT JOIN nrl.team_form_v fh ON fh.match_id=m.match_id AND fh.team=m.home_team
-                LEFT JOIN nrl.team_form_v fa ON fa.match_id=m.match_id AND fa.team=m.away_team
+                LEFT JOIN {form_view} fh ON fh.match_id=m.match_id AND fh.team=m.home_team
+                LEFT JOIN {form_view} fa ON fa.match_id=m.match_id AND fa.team=m.away_team
 
                 LEFT JOIN nrl.coach_profile ch ON ch.season=m.season AND ch.team=m.home_team
                 LEFT JOIN nrl.coach_profile ca ON ca.season=m.season AND ca.team=m.away_team
@@ -86,7 +97,7 @@ def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
                 LEFT JOIN nrl.injuries_current ih ON ih.season=m.season AND ih.team=m.home_team
                 LEFT JOIN nrl.injuries_current ia ON ia.season=m.season AND ia.team=m.away_team
 
-                LEFT JOIN nrl.odds oh ON oh.match_id=m.match_id AND oh.team=m.home_team
+                LEFT JOIN {odds_table} oh ON oh.match_id=m.match_id AND oh.team=m.home_team
 
                 LEFT JOIN nrl.team_ratings ph ON ph.season=m.season AND ph.team=m.home_team
                 LEFT JOIN nrl.team_ratings pa ON pa.season=m.season AND pa.team=m.away_team
@@ -95,9 +106,12 @@ def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
 
                 WHERE m.match_id=:mid
                 """
-            ),
-            dict(mid=match_id),
-        ).mappings().first()
+                ),
+                dict(mid=match_id),
+            )
+            .mappings()
+            .first()
+        )
 
     if not row:
         return {
@@ -283,7 +297,13 @@ def evaluate_match_and_decide(
                 ON CONFLICT (portfolio_id) DO NOTHING
                 """
             ),
-            dict(pid=portfolio_id, s=season, r=round_num, sj=json.dumps(asdict(slip)), st=status),
+            dict(
+                pid=portfolio_id,
+                s=season,
+                r=round_num,
+                sj=json.dumps(asdict(slip)),
+                st=status,
+            ),
         )
 
     debug = {
@@ -301,18 +321,23 @@ def evaluate_match_and_decide(
 
 
 def evaluate_round(engine: Engine, season: int, round_num: int, dry_run: bool) -> None:
+    matches_table = truth_table(engine, "matches_raw")
     with engine.begin() as conn:
-        matches = conn.execute(
-            sql_text(
-                """
+        matches = (
+            conn.execute(
+                sql_text(
+                    f"""
                 SELECT match_id
-                FROM nrl.matches_raw
+                FROM {matches_table}
                 WHERE season=:s AND round_num=:r
                 ORDER BY match_date NULLS LAST, match_id
                 """
-            ),
-            dict(s=season, r=round_num),
-        ).mappings().all()
+                ),
+                dict(s=season, r=round_num),
+            )
+            .mappings()
+            .all()
+        )
 
     if not matches:
         logger.warning("No matches found for season=%s round=%s", season, round_num)
@@ -322,5 +347,19 @@ def evaluate_round(engine: Engine, season: int, round_num: int, dry_run: bool) -
     tracker = RoundExposureTracker(bankroll=bankroll)
 
     for m in matches:
-        slip, debug = evaluate_match_and_decide(engine, season, round_num, m["match_id"], dry_run=dry_run, exposure_tracker=tracker)
-        logger.info("Slip %s: %s (stake=%.2f ev=%.4f clv=%.3f)", slip.portfolio_id[:8], slip.selection, slip.stake, slip.ev, debug["clv_diff"])
+        slip, debug = evaluate_match_and_decide(
+            engine,
+            season,
+            round_num,
+            m["match_id"],
+            dry_run=dry_run,
+            exposure_tracker=tracker,
+        )
+        logger.info(
+            "Slip %s: %s (stake=%.2f ev=%.4f clv=%.3f)",
+            slip.portfolio_id[:8],
+            slip.selection,
+            slip.stake,
+            slip.ev,
+            debug["clv_diff"],
+        )

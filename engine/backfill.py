@@ -1,4 +1,5 @@
 """Backfill historical predictions and label outcomes."""
+
 from __future__ import annotations
 
 import logging
@@ -7,6 +8,8 @@ from typing import Dict, List, Optional
 
 from sqlalchemy import bindparam, text as sql_text
 from sqlalchemy.engine import Engine
+
+from .schema_router import truth_table
 
 from .calibration import apply_calibration, load_latest_calibrator
 from .deploy_engine import _fetch_live_feature_row, _heuristic_p, _ml_p
@@ -27,10 +30,11 @@ def backfill_predictions(
     - Labels outcomes from actual scores if label_outcomes=True
     - Skips matches that already have predictions (idempotent)
     """
-    base_sql = """
+    matches_table = truth_table(engine, "matches_raw")
+    base_sql = f"""
         SELECT m.match_id, m.season, m.round_num, m.match_date,
                m.home_team, m.away_team, m.home_score, m.away_score
-        FROM nrl.matches_raw m
+        FROM {matches_table} m
         WHERE m.season = :s
           AND m.home_score IS NOT NULL
           AND m.away_score IS NOT NULL
@@ -142,13 +146,14 @@ def label_outcomes(engine: Engine, season: int) -> Dict:
     Label already-existing predictions with outcomes from resolved matches.
     Updates model_prediction rows where outcome_known is false but scores exist.
     """
+    matches_table = truth_table(engine, "matches_raw")
     with engine.begin() as conn:
         result = conn.execute(
-            sql_text("""
+            sql_text(f"""
                 UPDATE nrl.model_prediction mp
                 SET outcome_known = true,
                     outcome_home_win = (mr.home_score > mr.away_score)
-                FROM nrl.matches_raw mr
+                FROM {matches_table} mr
                 WHERE mp.match_id = mr.match_id
                   AND mp.season = :s
                   AND mp.outcome_known = false
