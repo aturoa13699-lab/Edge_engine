@@ -1,0 +1,4 @@
+2026-02-14 08:59:55 INFO nrl-pillar1: Doctor OK
+2026-02-14 08:59:55 WARNING nrl-pillar1: DOCTOR_WARN TZ is not set
+2026-02-14 08:59:55 WARNING nrl-pillar1: DOCTOR_WARN REFEREE_URL not set (referee scraper will skip)
+2026-02-14 08:59:55 WARNING nrl-pillar1: DOCTOR_WARN Playwright package not installed

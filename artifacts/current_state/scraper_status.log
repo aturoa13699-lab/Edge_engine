@@ -1,0 +1,2 @@
+2026-02-14 08:53:23 INFO nrl-pillar1: scraper=bom_weather status=success run_id=7fee3767-eebf-44a9-b8ef-1b499f85b4fb last_success=2026-02-14 08:52:15.979925+00:00 rows_inserted=0 last_error=None
+2026-02-14 08:53:23 INFO nrl-pillar1: scraper=referee_playwright status=skipped run_id=7fee3767-eebf-44a9-b8ef-1b499f85b4fb last_success=None rows_inserted=0 last_error=Playwright not installed
