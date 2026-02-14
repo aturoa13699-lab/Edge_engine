@@ -140,23 +140,40 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
 
     requested = Path(raw)
 
+    def _is_under_base(resolved: Path, base_resolved: Path) -> bool:
+        """
+        Return True if ``resolved`` is the base itself or is contained within it.
+        Both arguments are expected to be absolute, normalized paths.
+        """
+        return resolved == base_resolved or base_resolved in resolved.parents
+
     if requested.is_absolute():
-        # Normalize and resolve symlinks once, then ensure the result lies under an
-        # allowed base directory to prevent path traversal or reading arbitrary files.
-        resolved = requested.resolve(strict=False)
+        # For absolute paths, resolve symlinks and normalise the path, then ensure
+        # the final real location lies under one of the allowed base directories.
+        try:
+            resolved = requested.resolve(strict=True)
+        except FileNotFoundError:
+            # If the target does not exist yet, resolve as much as possible but still
+            # enforce that the existing parent directory is within an allowed base.
+            resolved = requested.resolve(strict=False)
         for base in ALLOWED_PATH_BASES:
             base_resolved = base  # ALLOWED_PATH_BASES are pre-resolved at import time
-            if resolved == base_resolved or base_resolved in resolved.parents:
+            if _is_under_base(resolved, base_resolved):
                 return resolved
         raise ValueError("absolute path must be under artifacts/ or data/")
 
     # Treat relative paths as relative to each allowed base in turn, again ensuring
-    # that the final resolved path is contained within that base directory.
+    # that the final resolved path (after following symlinks) is contained within
+    # that base directory.
     for base in ALLOWED_PATH_BASES:
         base_resolved = base
-        candidate = (base_resolved / requested).resolve(strict=False)
-        if candidate == base_resolved or base_resolved in candidate.parents:
-            return candidate
+        candidate = base_resolved / requested
+        try:
+            resolved_candidate = candidate.resolve(strict=True)
+        except FileNotFoundError:
+            resolved_candidate = candidate.resolve(strict=False)
+        if _is_under_base(resolved_candidate, base_resolved):
+            return resolved_candidate
 
     raise ValueError("path must be under artifacts/ or data/")
 
