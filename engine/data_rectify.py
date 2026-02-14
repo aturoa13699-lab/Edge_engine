@@ -145,7 +145,14 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
         Return True if ``resolved`` is the base itself or is contained within it.
         Both arguments are expected to be absolute, normalized paths.
         """
-        return resolved == base_resolved or base_resolved in resolved.parents
+        # Python 3.9+ provides Path.is_relative_to; fall back to relative_to for older versions.
+        if hasattr(resolved, "is_relative_to"):
+            return resolved == base_resolved or resolved.is_relative_to(base_resolved)
+        try:
+            resolved.relative_to(base_resolved)
+            return True
+        except ValueError:
+            return resolved == base_resolved
 
     if requested.is_absolute():
         # For absolute paths, resolve symlinks and normalise the path, then ensure
@@ -156,6 +163,9 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
             # If the target does not exist yet, resolve as much as possible but still
             # enforce that the existing parent directory is within an allowed base.
             resolved = requested.resolve(strict=False)
+        # Ensure we are always working with an absolute, normalised path.
+        if not resolved.is_absolute():
+            resolved = resolved.resolve(strict=False)
         for base in ALLOWED_PATH_BASES:
             base_resolved = base  # ALLOWED_PATH_BASES are pre-resolved at import time
             if _is_under_base(resolved, base_resolved):
@@ -172,6 +182,9 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
             resolved_candidate = candidate.resolve(strict=True)
         except FileNotFoundError:
             resolved_candidate = candidate.resolve(strict=False)
+        # Ensure resolved candidate is absolute and normalised before the check.
+        if not resolved_candidate.is_absolute():
+            resolved_candidate = resolved_candidate.resolve(strict=False)
         if _is_under_base(resolved_candidate, base_resolved):
             return resolved_candidate
 
