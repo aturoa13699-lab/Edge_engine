@@ -47,7 +47,6 @@ def _table_name(engine: Engine, table: str) -> str:
 def _report_table_name(engine: Engine) -> str:
     if engine.dialect.name.startswith("postgres"):
         return f"{ops_schema()}.data_quality_reports"
-        return "nrl.data_quality_reports"
     return "data_quality_reports"
 
 
