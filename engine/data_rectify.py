@@ -141,7 +141,17 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
     requested = Path(raw)
 
     def _is_within(base: Path, candidate: Path) -> bool:
-        return candidate == base or base in candidate.parents
+        """
+        Return True if the resolved candidate path is the same as the resolved base
+        path or is located within it. This guards against path traversal by always
+        comparing fully-resolved paths and ensuring they share the same anchor/drive.
+        """
+        base_resolved = base.resolve()
+        candidate_resolved = candidate.resolve()
+        # On Windows, also ensure the drive/anchor matches; on POSIX this is a no-op.
+        if base_resolved.anchor != candidate_resolved.anchor:
+            return False
+        return candidate_resolved == base_resolved or base_resolved in candidate_resolved.parents
 
     if requested.is_absolute():
         resolved = requested.resolve()
