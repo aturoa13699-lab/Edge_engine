@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
+ALLOWED_PATH_BASES = (Path("artifacts").resolve(), Path("data").resolve())
 
 
 @dataclass
@@ -128,6 +131,71 @@ def _ensure_clean_tables(engine: Engine) -> None:
             conn.execute(text(stmt))
 
 
+def _resolve_allowed_path(path: str | None) -> Path | None:
+    if not path:
+        return None
+    raw = path.strip()
+    if "://" in raw:
+        raise ValueError("path must be a local filesystem path")
+
+    requested = Path(raw)
+
+    def _is_under_base(resolved: Path, base_resolved: Path) -> bool:
+        """
+        Return True if ``resolved`` is the base itself or is contained within it.
+        Both arguments are expected to be absolute, normalized paths.
+        """
+        if hasattr(resolved, "is_relative_to"):
+            return resolved.is_relative_to(base_resolved)
+        try:
+            resolved.relative_to(base_resolved)
+            return True
+        except ValueError:
+            return False
+
+    # Helper: given a candidate path that may or may not exist, ensure that either
+    # the path itself (if it exists) or its parent directory (if it does not)
+    # resolves inside the allowed base. This protects against traversal and
+    # symlink attacks even when creating new files.
+    def _resolve_under_base(base_resolved: Path, candidate: Path) -> Path | None:
+        try:
+            resolved_candidate = candidate.resolve(strict=True)
+        except FileNotFoundError:
+            # Target does not exist yet; resolve the parent directory strictly,
+            # to ensure any symlinks or traversal components are validated.
+            parent = candidate.parent
+            try:
+                resolved_parent = parent.resolve(strict=True)
+            except FileNotFoundError:
+                return None
+            if not _is_under_base(resolved_parent, base_resolved):
+                return None
+            # The parent is safe; reconstruct the final path under that parent.
+            resolved_candidate = resolved_parent / candidate.name
+        if not _is_under_base(resolved_candidate, base_resolved):
+            return None
+        return resolved_candidate
+
+    # Absolute user-specified paths must already lie under one of the allowed bases.
+    if requested.is_absolute():
+        for base in ALLOWED_PATH_BASES:
+            base_resolved = base  # ALLOWED_PATH_BASES are pre-resolved at import time
+            resolved = _resolve_under_base(base_resolved, requested)
+            if resolved is not None:
+                return resolved
+        raise ValueError("absolute path must be under artifacts/ or data/")
+
+    # For relative paths, interpret them as relative to each allowed base in turn.
+    for base in ALLOWED_PATH_BASES:
+        base_resolved = base
+        candidate = base_resolved / requested
+        resolved_candidate = _resolve_under_base(base_resolved, candidate)
+        if resolved_candidate is not None:
+            return resolved_candidate
+
+    raise ValueError("path must be under artifacts/ or data/")
+
+
 def _season_checksum(row: dict) -> str:
     payload = (
         f"{row['match_id']}:{row['season']}:{row['round_num']}:{row['home_team']}:"
@@ -139,7 +207,10 @@ def _season_checksum(row: dict) -> str:
 def _load_authoritative_payload(path: str | None) -> tuple[list[dict], list[dict]]:
     if not path:
         return [], []
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    safe_path = _resolve_allowed_path(path)
+    if safe_path is None:
+        return [], []
+    payload = json.loads(safe_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("authoritative payload must be a JSON object")
     matches = payload.get("matches", [])
@@ -152,7 +223,10 @@ def _load_authoritative_payload(path: str | None) -> tuple[list[dict], list[dict
 def _load_authoritative_sample(path: str | None) -> list[dict]:
     if not path:
         return []
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    safe_path = _resolve_allowed_path(path)
+    if safe_path is None:
+        return []
+    data = json.loads(safe_path.read_text(encoding="utf-8"))
     if not isinstance(data, list):
         raise ValueError("authoritative sample must be a JSON list")
     return data
