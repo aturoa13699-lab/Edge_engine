@@ -167,15 +167,6 @@ def cmd_data_quality(engine, seasons: list[int] | None = None):
     _run_quality_gate(engine, seasons=seasons)
 
 
-def cmd_doctor(engine):
-    from .doctor import run_doctor
-
-    report = run_doctor(engine)
-    if not report.ok:
-        raise SystemExit(1)
-    return report
-
-
 def cmd_rebuild_clean_baseline(
     engine, seasons: list[int], calibration_season: int, backtest_season: int
 ):

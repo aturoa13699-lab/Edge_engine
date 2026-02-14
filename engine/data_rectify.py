@@ -140,27 +140,58 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
 
     requested = Path(raw)
 
-    def _is_within(base: Path, candidate: Path) -> bool:
-        return candidate == base or base in candidate.parents
+    def _is_under_base(resolved: Path, base_resolved: Path) -> bool:
+        """
+        Return True if ``resolved`` is the base itself or is contained within it.
+        Both arguments are expected to be absolute, normalized paths.
+        """
+        if hasattr(resolved, "is_relative_to"):
+            return resolved.is_relative_to(base_resolved)
+        try:
+            resolved.relative_to(base_resolved)
+            return True
+        except ValueError:
+            return False
 
+    # Helper: given a candidate path that may or may not exist, ensure that either
+    # the path itself (if it exists) or its parent directory (if it does not)
+    # resolves inside the allowed base. This protects against traversal and
+    # symlink attacks even when creating new files.
+    def _resolve_under_base(base_resolved: Path, candidate: Path) -> Path | None:
+        try:
+            resolved_candidate = candidate.resolve(strict=True)
+        except FileNotFoundError:
+            # Target does not exist yet; resolve the parent directory strictly,
+            # to ensure any symlinks or traversal components are validated.
+            parent = candidate.parent
+            try:
+                resolved_parent = parent.resolve(strict=True)
+            except FileNotFoundError:
+                return None
+            if not _is_under_base(resolved_parent, base_resolved):
+                return None
+            # The parent is safe; reconstruct the final path under that parent.
+            resolved_candidate = resolved_parent / candidate.name
+        if not _is_under_base(resolved_candidate, base_resolved):
+            return None
+        return resolved_candidate
+
+    # Absolute user-specified paths must already lie under one of the allowed bases.
     if requested.is_absolute():
-        resolved = requested.resolve()
         for base in ALLOWED_PATH_BASES:
-            if _is_within(base, resolved):
+            base_resolved = base  # ALLOWED_PATH_BASES are pre-resolved at import time
+            resolved = _resolve_under_base(base_resolved, requested)
+            if resolved is not None:
                 return resolved
         raise ValueError("absolute path must be under artifacts/ or data/")
 
-    # First honor relative paths from cwd (e.g. artifacts/foo.json)
-    cwd_candidate = requested.resolve()
+    # For relative paths, interpret them as relative to each allowed base in turn.
     for base in ALLOWED_PATH_BASES:
-        if _is_within(base, cwd_candidate):
-            return cwd_candidate
-
-    # Backward-compatible shorthand: treat relative path as scoped under allowed bases
-    for base in ALLOWED_PATH_BASES:
-        candidate = (base / requested).resolve()
-        if _is_within(base, candidate):
-            return candidate
+        base_resolved = base
+        candidate = base_resolved / requested
+        resolved_candidate = _resolve_under_base(base_resolved, candidate)
+        if resolved_candidate is not None:
+            return resolved_candidate
 
     raise ValueError("path must be under artifacts/ or data/")
 

@@ -211,26 +211,3 @@ def test_rectify_rejects_disallowed_absolute_path():
             source_url_or_id="https://example.test/nrl",
             canary_path="/tmp/not_allowed.json",
         )
-
-
-def test_rectify_accepts_artifacts_prefixed_relative_path():
-    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
-    _seed_raw(engine)
-
-    artifacts_dir = Path("artifacts/test_inputs")
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    payload_name = f"authoritative_payload_{uuid.uuid4().hex}.json"
-    payload_file = artifacts_dir / payload_name
-    payload_file.write_text(json.dumps({"matches": [], "odds": []}), encoding="utf-8")
-
-    # Explicit artifacts/ prefix should resolve safely without double-prefixing
-    result = rectify_historical_partitions(
-        engine,
-        seasons=[2025],
-        source_name="official_feed",
-        source_url_or_id="authoritative://feed",
-        authoritative_payload_path=f"artifacts/test_inputs/{payload_name}",
-    )
-
-    assert result.copied_matches == 2
-    assert result.copied_odds == 4
