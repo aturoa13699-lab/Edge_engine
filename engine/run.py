@@ -140,6 +140,10 @@ def cmd_ops_parity_smoke(engine):
     return enforce_ops_schema_parity_smoke(engine)
 
 
+def cmd_data_quality(engine, seasons: list[int] | None = None):
+    _run_quality_gate(engine, seasons=seasons)
+
+
 def cmd_rebuild_clean_baseline(
     engine, seasons: list[int], calibration_season: int, backtest_season: int
 ):
@@ -190,6 +194,7 @@ def parse_args():
             "label-outcomes",
             "backtest",
             "seed",
+            "data-quality",
             "rectify-clean",
             "schema-parity-smoke",
             "ops-parity-smoke",
@@ -314,6 +319,8 @@ def main():
         )
     elif args.command == "seed":
         cmd_seed(engine, season=args.season)
+    elif args.command == "data-quality":
+        cmd_data_quality(engine)
     elif args.command == "schema-parity-smoke":
         cmd_schema_parity_smoke(engine)
     elif args.command == "ops-parity-smoke":
