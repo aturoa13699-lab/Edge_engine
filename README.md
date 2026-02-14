@@ -46,9 +46,8 @@ Commands
 	•	python -m engine.run rebuild-clean-baseline --seasons 2022,2023,2024,2025 --calibration-season 2025 --backtest-season 2025 — run first truthful rebuild pipeline
 
 CI
-	•	./scripts/gate_fast.sh (canonical local/CI fast gate)
-	•	./scripts/gate_full.sh (canonical integration gate)
-	•	Nightly diagnostics: `.github/workflows/nightly-self-check.yml`
+	•	bash scripts/gate_fast.sh
+	•	bash scripts/gate_full.sh (Postgres-enabled jobs)
 
 
 ## Schema policy (truth vs ops)
@@ -66,35 +65,11 @@ Rule: Merge gate is only **PASS** if the final two commands are `ruff format . -
 	•	python -m pip install -r requirements.txt
 	•	python -m pip install -r requirements-dev.txt
 
-2. Sanity
-	•	python -m engine.run --help
+2. Fast gate (local + CI)
+	•	bash scripts/gate_fast.sh
 
-3. Syntax / import tripwires (fail fast)
-	•	python -m compileall -q engine
-	•	python -c "from sqlalchemy import create_engine; from engine.schema_router import ops_table, truth_table; e=create_engine('sqlite://'); print('OK', ops_table(e, 'slips'), truth_table(e, 'matches_raw'))"
+3. Full gate (CI with Postgres; optional local)
+	•	bash scripts/gate_full.sh
+	•	CI sets `INTEGRATION_TEST=1` and provisions Postgres
 
-4. Typecheck
-	•	mypy .
-
-5. Unit tests
-	•	pytest -q
-
-6. Integration
-	•	pytest -q tests/test_integration_pg.py
-	•	CI: `INTEGRATION_TEST=1 pytest -q tests/test_integration_pg.py` (Postgres provisioned runner)
-	•	Local: `INTEGRATION_TEST=1` must fail when `DATABASE_URL` is not PostgreSQL (fail-closed)
-
-7. FINAL LINT END-CAP (RUN LAST, NO EXCEPTIONS)
-	•	ruff format . --check
-	•	ruff check .
-
-Done when: the last output is a successful `ruff check .` run.
-
-Canonical scripts
-	•	`scripts/gate_fast.sh` — CLI/help + compile/import tripwires + mypy + unit tests + Ruff end-cap.
-	•	`scripts/gate_full.sh` — everything in fast gate plus integration smoke (including strict fail-closed check).
-	•	`scripts/nightly_diagnose.sh` — non fail-fast diagnostics that emits per-step logs and `artifacts/nightly/summary.json`.
-
-Pre-commit (developer-side prevention)
-	•	Install: `python -m pip install pre-commit && pre-commit install`
-	•	Config: `.pre-commit-config.yaml` runs `ruff-format`, `ruff`, and `compileall` tripwire locally before commit.
+Done when: the last output inside the gate scripts is a successful `ruff check .` run.

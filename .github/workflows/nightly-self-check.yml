@@ -16,6 +16,11 @@ permissions:
 
 jobs:
   diagnose:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  nightly:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -37,7 +42,6 @@ jobs:
       QUALITY_GATE_SEASONS: 2022,2023,2024,2025
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -47,107 +51,52 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
-      - name: Run nightly diagnostics (non fail-fast)
-        id: diagnose
-        continue-on-error: true
-        run: ./scripts/nightly_diagnose.sh artifacts/nightly
+      - name: Run nightly checks
+        id: nightly_checks
+        run: |
+          mkdir -p artifacts
+          {
+            echo "## gate_full"
+            bash scripts/gate_full.sh
+            echo "## schema parity"
+            python -m engine.run schema-parity-smoke
+            echo "## ops parity"
+            python -m engine.run ops-parity-smoke
+            echo "## data quality"
+            python -m engine.run data-quality
+          } 2>&1 | tee artifacts/nightly.log
 
-      - name: Upload nightly artifacts
+      - name: Upload nightly logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-diagnostics
-          path: artifacts/nightly/
+          name: nightly-self-check-logs
+          path: artifacts/nightly.log
 
-      - name: Classify lint-only failure
-        if: always()
-        id: classify
-        run: |
-          LINT_ONLY=$(python - <<'PY'
-          import json
-          from pathlib import Path
-
-          summary = json.loads(Path('artifacts/nightly/summary.json').read_text())
-          failed = set(summary.get('failed_steps', []))
-          lint_only = bool(failed) and failed.issubset({'ruff_format_check', 'ruff_check'})
-          print(str(lint_only).lower())
-          PY
-          )
-          echo "lint_only=${LINT_ONLY}" >> "$GITHUB_OUTPUT"
-
-      - name: Safe auto-fix lane (format + import sorting)
-        if: steps.classify.outputs.lint_only == 'true'
-        run: |
-          ruff format .
-          ruff check . --fix --select I
-          ./scripts/gate_fast.sh
-
-      - name: Open auto-fix PR
-        if: steps.classify.outputs.lint_only == 'true'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          branch: agent/nightly-autofix
-          commit-message: "Nightly auto-fix: format and import sorting"
-          title: "Nightly auto-fix: formatting/import sorting"
-          body: |
-            Automated nightly auto-fix for lint-only failures.
-
-            Changes are limited to:
-            - `ruff format .`
-            - `ruff check . --fix --select I`
-
-            Gate validation rerun: `./scripts/gate_fast.sh`.
-          labels: nightly,autofix
-
-      - name: Report diagnostics in rolling issue
-        if: always()
+      - name: Open issue on failure
+        if: failure()
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const summary = JSON.parse(fs.readFileSync('artifacts/nightly/summary.json', 'utf8'));
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const title = 'Nightly diagnostics status (rolling)';
-            const label = 'nightly-diagnostics';
-            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `Nightly self-check failed (${new Date().toISOString().slice(0, 10)})`;
             const body = [
-              `Run: ${runUrl}`,
-              `Overall: **${summary.overall}**`,
-              summary.failed_steps.length
-                ? `Failed steps: ${summary.failed_steps.join(', ')}`
-                : 'Failed steps: none',
-              'Artifacts: `nightly-diagnostics` (see run artifacts).'
+              'Nightly self-check failed.',
+              '',
+              `- Workflow run: ${runUrl}`,
+              '- Commands:',
+              '  - bash scripts/gate_full.sh',
+              '  - python -m engine.run schema-parity-smoke',
+              '  - python -m engine.run ops-parity-smoke',
+              '  - python -m engine.run data-quality',
+              '',
+              'See the uploaded artifact `nightly-self-check-logs` for forensic output.'
             ].join('\n');
 
-            const issues = await github.paginate(github.rest.issues.listForRepo, {
-              owner,
-              repo,
-              state: 'open',
-              labels: label,
-              per_page: 100,
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['ci', 'nightly-failure']
             });
-
-            let issue = issues.find(i => i.title === title);
-            if (!issue) {
-              issue = (await github.rest.issues.create({
-                owner,
-                repo,
-                title,
-                body,
-                labels: [label],
-              })).data;
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: issue.number,
-                body,
-              });
-            }
-
-      - name: Fail job if diagnostics failed
-        if: always() && steps.diagnose.outcome == 'failure'
-        run: |
-          echo "Nightly diagnostics detected failures. See artifacts/nightly and rolling issue output."
-          exit 1

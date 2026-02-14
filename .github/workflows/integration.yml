@@ -36,5 +36,5 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
-      - name: Run canonical full gate
-        run: ./scripts/gate_full.sh
+      - name: Run full gate
+        run: bash scripts/gate_full.sh

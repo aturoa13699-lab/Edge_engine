@@ -40,6 +40,7 @@ class DataQualityReport:
 def _table_name(engine: Engine, table: str) -> str:
     if engine.dialect.name.startswith("postgres"):
         return f"{truth_schema()}.{table}"
+        return f"nrl.{table}"
     return table
 
 
