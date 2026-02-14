@@ -1,0 +1,13 @@
+2026-02-14 08:52:15 INFO nrl-pillar1: Running scrapers for season=2026 run_id=7fee3767-eebf-44a9-b8ef-1b499f85b4fb dry_run=True
+2026-02-14 08:52:15 INFO nrl-pillar1: SCRAPER_START {"dry_run": true, "run_id": "7fee3767-eebf-44a9-b8ef-1b499f85b4fb", "scraper": "bom_weather", "season": 2026}
+2026-02-14 08:52:15 WARNING nrl-pillar1: BOM fetch failed: HTTPSConnectionPool(host='reg.bom.gov.au', port=443): Max retries exceeded with url: /fwo/IDN60901/IDN60901.94767.json (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))
+2026-02-14 08:52:15 INFO nrl-pillar1: SCRAPER_FETCH {"bytes": 0, "latency_ms": 77, "run_id": "7fee3767-eebf-44a9-b8ef-1b499f85b4fb", "scraper": "bom_weather", "status": null, "url": "https://reg.bom.gov.au/fwo/IDN60901/IDN60901.94767.json"}
+2026-02-14 08:52:15 WARNING nrl-pillar1: BOM fetch failed: HTTPSConnectionPool(host='reg.bom.gov.au', port=443): Max retries exceeded with url: /fwo/IDN60901/IDN60901.94767.json (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))
+2026-02-14 08:52:15 INFO nrl-pillar1: SCRAPER_FETCH {"bytes": 0, "latency_ms": 240, "run_id": "7fee3767-eebf-44a9-b8ef-1b499f85b4fb", "scraper": "bom_weather", "status": null, "url": "https://reg.bom.gov.au/fwo/IDN60901/IDN60901.94767.json"}
+2026-02-14 08:52:15 WARNING nrl-pillar1: BOM fetch failed: HTTPSConnectionPool(host='reg.bom.gov.au', port=443): Max retries exceeded with url: /fwo/IDQ60901/IDQ60901.94578.json (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))
+2026-02-14 08:52:15 INFO nrl-pillar1: SCRAPER_FETCH {"bytes": 0, "latency_ms": 63, "run_id": "7fee3767-eebf-44a9-b8ef-1b499f85b4fb", "scraper": "bom_weather", "status": null, "url": "https://reg.bom.gov.au/fwo/IDQ60901/IDQ60901.94578.json"}
+2026-02-14 08:52:15 INFO nrl-pillar1: SCRAPER_END {"rows_inserted": 0, "run_id": "7fee3767-eebf-44a9-b8ef-1b499f85b4fb", "scraper": "bom_weather", "season": 2026, "success": true}
+2026-02-14 08:52:15 INFO nrl-pillar1: SCRAPER_START {"dry_run": true, "run_id": "7fee3767-eebf-44a9-b8ef-1b499f85b4fb", "scraper": "referee_playwright", "season": 2026}
+2026-02-14 08:52:15 INFO nrl-pillar1: Playwright not installed; referee scraper skipped.
+2026-02-14 08:52:17 INFO nrl-pillar1: scraper=bom_weather status=success run_id=7fee3767-eebf-44a9-b8ef-1b499f85b4fb last_success=2026-02-14 08:52:15.979925+00:00 rows_inserted=0 last_error=None
+2026-02-14 08:52:17 INFO nrl-pillar1: scraper=referee_playwright status=skipped run_id=7fee3767-eebf-44a9-b8ef-1b499f85b4fb last_success=None rows_inserted=0 last_error=Playwright not installed

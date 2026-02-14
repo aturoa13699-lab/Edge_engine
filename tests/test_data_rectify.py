@@ -1,5 +1,8 @@
 import json
+import uuid
+from pathlib import Path
 
+import pytest
 from sqlalchemy import create_engine, text
 
 from engine.data_rectify import rectify_historical_partitions
@@ -64,11 +67,14 @@ def _seed_raw(engine):
         )
 
 
-def test_rectify_copies_to_clean_and_records_provenance(tmp_path):
+def test_rectify_copies_to_clean_and_records_provenance():
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     _seed_raw(engine)
 
-    canary_file = tmp_path / "canary.json"
+    artifacts_dir = Path("artifacts/test_inputs")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    canary_name = f"canary_{uuid.uuid4().hex}.json"
+    canary_file = artifacts_dir / canary_name
     canary_file.write_text(
         json.dumps(
             [
@@ -89,7 +95,7 @@ def test_rectify_copies_to_clean_and_records_provenance(tmp_path):
         seasons=[2025],
         source_name="trusted_nrl_api",
         source_url_or_id="https://example.test/nrl",
-        canary_path=str(canary_file),
+        canary_path=f"test_inputs/{canary_name}",
     )
 
     assert result.copied_matches == 2
@@ -121,7 +127,7 @@ def test_rectify_copies_to_clean_and_records_provenance(tmp_path):
         assert prov[0]["checksum"]
 
 
-def test_rectify_from_authoritative_payload(tmp_path):
+def test_rectify_from_authoritative_payload():
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     _seed_raw(engine)
 
@@ -158,7 +164,10 @@ def test_rectify_from_authoritative_payload(tmp_path):
             },
         ],
     }
-    payload_file = tmp_path / "authoritative_payload.json"
+    artifacts_dir = Path("artifacts/test_inputs")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    payload_name = f"authoritative_payload_{uuid.uuid4().hex}.json"
+    payload_file = artifacts_dir / payload_name
     payload_file.write_text(json.dumps(payload), encoding="utf-8")
 
     result = rectify_historical_partitions(
@@ -166,7 +175,7 @@ def test_rectify_from_authoritative_payload(tmp_path):
         seasons=[2025],
         source_name="official_feed",
         source_url_or_id="authoritative://feed",
-        authoritative_payload_path=str(payload_file),
+        authoritative_payload_path=f"test_inputs/{payload_name}",
     )
 
     assert result.copied_matches == 1
@@ -186,3 +195,19 @@ def test_rectify_from_authoritative_payload(tmp_path):
         assert row["match_id"] == "AUTH1"
         assert int(row["home_score"]) == 22
         assert int(row["away_score"]) == 10
+
+
+def test_rectify_rejects_disallowed_absolute_path():
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    _seed_raw(engine)
+
+    with pytest.raises(
+        ValueError, match="absolute path must be under artifacts/ or data/"
+    ):
+        rectify_historical_partitions(
+            engine,
+            seasons=[2025],
+            source_name="trusted_nrl_api",
+            source_url_or_id="https://example.test/nrl",
+            canary_path="/tmp/not_allowed.json",
+        )

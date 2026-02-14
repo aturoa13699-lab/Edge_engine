@@ -256,6 +256,26 @@ CREATE TABLE IF NOT EXISTS nrl.data_quality_reports (
 CREATE INDEX IF NOT EXISTS ix_data_quality_reports_checked_at
   ON nrl.data_quality_reports(checked_at DESC);
 
+
+CREATE TABLE IF NOT EXISTS nrl.scraper_runs (
+  run_id text NOT NULL,
+  scraper text NOT NULL,
+  season integer,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz,
+  status text NOT NULL,
+  dry_run boolean NOT NULL DEFAULT false,
+  rows_inserted integer NOT NULL DEFAULT 0,
+  rows_updated integer NOT NULL DEFAULT 0,
+  fetch_count integer NOT NULL DEFAULT 0,
+  last_error text,
+  details_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  PRIMARY KEY (run_id, scraper)
+);
+
+CREATE INDEX IF NOT EXISTS ix_scraper_runs_scraper_started_at
+  ON nrl.scraper_runs(scraper, started_at DESC);
+
 -- Views: rest days per team per match
 CREATE OR REPLACE VIEW nrl.team_rest_v AS
 WITH team_matches AS (
