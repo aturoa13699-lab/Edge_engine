@@ -18,26 +18,5 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
-      - name: CLI sanity
-        run: python -m engine.run --help
-
-      - name: Compile smoke
-        run: python -m compileall -q engine
-
-      - name: Schema router import smoke
-        run: python -c "from sqlalchemy import create_engine; from engine.schema_router import ops_table, truth_table; e=create_engine('sqlite://'); print('OK', ops_table(e, 'slips'), truth_table(e, 'matches_raw'))"
-      - name: Mypy
-        run: mypy .
-
-      - name: Mypy
-        run: mypy .
-
-      - name: Pytest
-        run: pytest -q
-
-      # FINAL LINT END-CAP (must be last)
-      - name: Ruff format (check)
-        run: ruff format . --check
-
-      - name: Ruff check
-        run: ruff check .
+      - name: Run fast gate
+        run: bash scripts/gate_fast.sh
