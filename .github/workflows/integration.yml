@@ -32,7 +32,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
 
-      - name: Run Postgres integration smoke
-        run: pytest -q tests/test_integration_pg.py
+      - name: Run full gate
+        run: bash scripts/gate_full.sh

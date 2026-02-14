@@ -229,6 +229,21 @@ CREATE TABLE IF NOT EXISTS nrl.model_registry (
 
 CREATE INDEX IF NOT EXISTS ix_model_registry_champion ON nrl.model_registry(model_key, is_champion);
 
+
+-- Run manifests for reproducible baseline rebuilds
+CREATE TABLE IF NOT EXISTS nrl.run_manifest (
+  id bigserial PRIMARY KEY,
+  run_type text NOT NULL,
+  run_started_at timestamptz NOT NULL,
+  truth_schema text NOT NULL,
+  ops_schema text NOT NULL,
+  seasons text NOT NULL,
+  payload jsonb NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_run_manifest_started_at
+  ON nrl.run_manifest(run_started_at DESC);
+
 -- Data quality gate report history
 CREATE TABLE IF NOT EXISTS nrl.data_quality_reports (
   id bigserial PRIMARY KEY,

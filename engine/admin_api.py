@@ -136,3 +136,40 @@ def rectify_clean(
         authoritative_payload_path=authoritative_payload_path,
     )
     return {"ok": True, "result": result.to_dict()}
+
+
+@app.get("/schema/parity-smoke")
+def schema_parity_smoke():
+    from .schema_parity import run_truth_schema_parity_smoke
+
+    engine = get_engine()
+    report = run_truth_schema_parity_smoke(engine)
+    return {"ok": report.ok, "report": report.to_dict()}
+
+
+@app.get("/schema/ops-parity-smoke")
+def ops_parity_smoke():
+    from .ops_parity import run_ops_schema_parity_smoke
+
+    engine = get_engine()
+    report = run_ops_schema_parity_smoke(engine)
+    return {"ok": report.ok, "report": report.to_dict()}
+
+
+@app.post("/rebuild/clean-baseline")
+def rebuild_clean_baseline(
+    seasons: str = "2022,2023,2024,2025",
+    calibration_season: int = 2025,
+    backtest_season: int = 2025,
+):
+    from .rebuild_baseline import run_rebuild_clean_baseline
+
+    engine = get_engine()
+    seasons_list = [int(s.strip()) for s in seasons.split(",") if s.strip()]
+    result = run_rebuild_clean_baseline(
+        engine,
+        seasons=seasons_list,
+        calibration_season=calibration_season,
+        backtest_season=backtest_season,
+    )
+    return {"ok": True, "result": result.to_dict()}
