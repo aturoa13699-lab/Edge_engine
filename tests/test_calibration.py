@@ -1,5 +1,9 @@
 from sqlalchemy import text
-from engine.calibration import fit_beta_calibrator, load_latest_calibrator, apply_calibration
+from engine.calibration import (
+    fit_beta_calibrator,
+    load_latest_calibrator,
+    apply_calibration,
+)
 
 
 def test_apply_calibration_identity_when_missing():
@@ -13,7 +17,9 @@ def test_fit_and_load_sqlite(sqlite_engine):
             p = 0.7 if i % 2 == 0 else 0.3
             y = 1 if i % 2 == 0 else 0
             conn.execute(
-                text("INSERT INTO model_prediction (season, p_fair, outcome_known, outcome_home_win) VALUES (2026, :p, 1, :y)"),
+                text(
+                    "INSERT INTO model_prediction (season, p_fair, outcome_known, outcome_home_win) VALUES (2026, :p, 1, :y)"
+                ),
                 dict(p=p, y=y),
             )
 

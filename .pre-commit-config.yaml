@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix, --select, I]
+      - id: ruff
+
+  - repo: local
+    hooks:
+      - id: compileall-engine
+        name: compileall engine
+        entry: python -m compileall -q engine
+        language: system
+        pass_filenames: false

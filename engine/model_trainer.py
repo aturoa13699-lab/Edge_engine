@@ -14,6 +14,7 @@ from sqlalchemy import bindparam, text as sql_text
 from sqlalchemy.engine import Engine
 
 from .model_registry import maybe_promote_by_brier, register_model
+from .schema_router import truth_table, truth_view
 
 logger = logging.getLogger("nrl-pillar1")
 
@@ -46,13 +47,18 @@ def _safe_float(x, default=0.0) -> float:
 
 def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
     # All features come from tables/views that exist in schema_pg.sql.
-    query = """
+    matches_table = truth_table(engine, "matches_raw")
+    odds_table = truth_table(engine, "odds")
+    rest_view = truth_view(engine, "team_rest_v")
+    form_view = truth_view(engine, "team_form_v")
+
+    query = f"""
     WITH base AS (
       SELECT
         m.match_id, m.season, m.round_num, m.match_date, m.venue,
         m.home_team, m.away_team,
         (m.home_score > m.away_score) AS home_win
-      FROM nrl.matches_raw m
+      FROM {matches_table} m
       WHERE m.season IN :seasons
         AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL
     )
@@ -82,11 +88,11 @@ def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
       COALESCE(w.wind_speed_kmh, 10.0) AS wind_speed_kmh
 
     FROM base b
-    LEFT JOIN nrl.team_rest_v rh ON rh.match_id=b.match_id AND rh.team=b.home_team
-    LEFT JOIN nrl.team_rest_v ra ON ra.match_id=b.match_id AND ra.team=b.away_team
+    LEFT JOIN {rest_view} rh ON rh.match_id=b.match_id AND rh.team=b.home_team
+    LEFT JOIN {rest_view} ra ON ra.match_id=b.match_id AND ra.team=b.away_team
 
-    LEFT JOIN nrl.team_form_v fh ON fh.match_id=b.match_id AND fh.team=b.home_team
-    LEFT JOIN nrl.team_form_v fa ON fa.match_id=b.match_id AND fa.team=b.away_team
+    LEFT JOIN {form_view} fh ON fh.match_id=b.match_id AND fh.team=b.home_team
+    LEFT JOIN {form_view} fa ON fa.match_id=b.match_id AND fa.team=b.away_team
 
     LEFT JOIN nrl.coach_profile ch ON ch.season=b.season AND ch.team=b.home_team
     LEFT JOIN nrl.coach_profile ca ON ca.season=b.season AND ca.team=b.away_team
@@ -94,7 +100,7 @@ def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
     LEFT JOIN nrl.injuries_current ih ON ih.season=b.season AND ih.team=b.home_team
     LEFT JOIN nrl.injuries_current ia ON ia.season=b.season AND ia.team=b.away_team
 
-    LEFT JOIN nrl.odds oh ON oh.match_id=b.match_id AND oh.team=b.home_team
+    LEFT JOIN {odds_table} oh ON oh.match_id=b.match_id AND oh.team=b.home_team
 
     LEFT JOIN nrl.team_ratings ph ON ph.season=b.season AND ph.team=b.home_team
     LEFT JOIN nrl.team_ratings pa ON pa.season=b.season AND pa.team=b.away_team
@@ -173,7 +179,9 @@ def _purged_walk_forward_cv(
 def train_model(engine: Engine, seasons: List[int]) -> Optional[Dict]:
     df = build_features(engine, seasons)
     if df.empty or len(df) < 120:
-        logger.error("Not enough resolved matches to train (need ~120+, got %s).", len(df))
+        logger.error(
+            "Not enough resolved matches to train (need ~120+, got %s).", len(df)
+        )
         return None
 
     for c in FEATURE_COLS:
@@ -205,21 +213,44 @@ def train_model(engine: Engine, seasons: List[int]) -> Optional[Dict]:
     os.makedirs(artifact_dir, exist_ok=True)
     artifact_path = os.path.join(artifact_dir, f"nrl_h2h_{version}.joblib")
 
-    bundle = {"model": model, "feature_cols": FEATURE_COLS, "version": version, "metrics": metrics}
+    bundle = {
+        "model": model,
+        "feature_cols": FEATURE_COLS,
+        "version": version,
+        "metrics": metrics,
+    }
     joblib.dump(bundle, artifact_path)
 
-    register_model(engine, model_key="nrl_h2h_xgb", version=version, artifact_path=artifact_path, metrics=metrics)
+    register_model(
+        engine,
+        model_key="nrl_h2h_xgb",
+        version=version,
+        artifact_path=artifact_path,
+        metrics=metrics,
+    )
 
-    promoted = maybe_promote_by_brier(engine, model_key="nrl_h2h_xgb", version=version, new_brier=float(metrics["cv_brier_mean"]))
+    promoted = maybe_promote_by_brier(
+        engine,
+        model_key="nrl_h2h_xgb",
+        version=version,
+        new_brier=float(metrics["cv_brier_mean"]),
+    )
 
     # Log feature importance
     try:
-        imp = pd.Series(model.feature_importances_, index=FEATURE_COLS).sort_values(ascending=False)
+        imp = pd.Series(model.feature_importances_, index=FEATURE_COLS).sort_values(
+            ascending=False
+        )
         logger.info("Top features:\n%s", imp.head(12).to_string())
     except Exception:
         pass
 
-    out = {"version": version, "artifact_path": artifact_path, "metrics": metrics, "promoted_to_champion": promoted}
+    out = {
+        "version": version,
+        "artifact_path": artifact_path,
+        "metrics": metrics,
+        "promoted_to_champion": promoted,
+    }
     logger.info("✓ Train complete: %s", out)
     return out
 
