@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .db import get_engine
 from .logging_setup import setup_logging
+from .scraper_observability import latest_status, new_run_id, scraper_dry_run_enabled
 from .sql_utils import split_sql_statements
 
 logger = logging.getLogger("nrl-pillar1")
@@ -37,9 +38,31 @@ def cmd_scrapers(engine, season: int):
     from .scrapers.bom_weather_scraper import run as run_weather
     from .scrapers.referee_scraper_playwright import run as run_ref
 
-    logger.info("Running scrapers for season=%s", season)
-    run_weather(engine, season=season)
-    run_ref(engine, season=season)
+    run_id = new_run_id()
+    dry_run = scraper_dry_run_enabled()
+    logger.info(
+        "Running scrapers for season=%s run_id=%s dry_run=%s", season, run_id, dry_run
+    )
+    run_weather(engine, season=season, run_id=run_id, dry_run=dry_run)
+    run_ref(engine, season=season, run_id=run_id, dry_run=dry_run)
+
+
+def cmd_scraper_status(engine):
+    statuses = latest_status(engine)
+    if not statuses:
+        logger.info("No scraper status rows found")
+        return []
+    for row in statuses:
+        logger.info(
+            "scraper=%s status=%s run_id=%s last_success=%s rows_inserted=%s last_error=%s",
+            row["scraper"],
+            row["status"],
+            row["run_id"],
+            row.get("last_success"),
+            row.get("rows_inserted"),
+            row.get("last_error"),
+        )
+    return statuses
 
 
 def cmd_train(engine, seasons: list[int]):
@@ -140,6 +163,19 @@ def cmd_ops_parity_smoke(engine):
     return enforce_ops_schema_parity_smoke(engine)
 
 
+def cmd_data_quality(engine, seasons: list[int] | None = None):
+    _run_quality_gate(engine, seasons=seasons)
+
+
+def cmd_doctor(engine):
+    from .doctor import run_doctor
+
+    report = run_doctor(engine)
+    if not report.ok:
+        raise SystemExit(1)
+    return report
+
+
 def cmd_rebuild_clean_baseline(
     engine, seasons: list[int], calibration_season: int, backtest_season: int
 ):
@@ -190,10 +226,13 @@ def parse_args():
             "label-outcomes",
             "backtest",
             "seed",
+            "data-quality",
             "rectify-clean",
             "schema-parity-smoke",
             "ops-parity-smoke",
             "rebuild-clean-baseline",
+            "scraper-status",
+            "doctor",
         ],
     )
     ap.add_argument(
@@ -314,10 +353,16 @@ def main():
         )
     elif args.command == "seed":
         cmd_seed(engine, season=args.season)
+    elif args.command == "data-quality":
+        cmd_data_quality(engine)
     elif args.command == "schema-parity-smoke":
         cmd_schema_parity_smoke(engine)
     elif args.command == "ops-parity-smoke":
         cmd_ops_parity_smoke(engine)
+    elif args.command == "scraper-status":
+        cmd_scraper_status(engine)
+    elif args.command == "doctor":
+        cmd_doctor(engine)
     elif args.command == "rebuild-clean-baseline":
         cmd_rebuild_clean_baseline(
             engine,

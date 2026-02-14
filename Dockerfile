@@ -18,4 +18,4 @@ COPY . .
 
 EXPOSE ${PORT:-8501}
 
-CMD ["sh", "-c", "python -m engine.run init || echo 'Schema init skipped (DB not reachable)'; streamlit run streamlit_app/hud.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true"]
+CMD ["sh", "-c", "python -m engine.run init && streamlit run streamlit_app/hud.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true"]

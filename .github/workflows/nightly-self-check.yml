@@ -10,14 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
-
-jobs:
-  diagnose:
-    - cron: "0 2 * * *"
-  workflow_dispatch:
 
 jobs:
   nightly:
@@ -35,7 +29,7 @@ jobs:
           --health-cmd="pg_isready -U postgres -d edge_engine"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=12
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/edge_engine
       INTEGRATION_TEST: "1"
@@ -45,6 +39,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install PostgreSQL client (pg_isready/psql)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres (fail-closed)
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres -d edge_engine; then
+              echo "Postgres is ready."
+              psql "$DATABASE_URL" -c "select 1;" >/dev/null
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::group::Postgres container logs"
+          docker logs "$POSTGRES_CONTAINER_ID" || true
+          echo "::endgroup::"
+          exit 1
 
       - name: Install dependencies
         run: |

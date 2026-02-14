@@ -1,0 +1,101 @@
+Requirement already satisfied: fastapi==0.115.6 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 1)) (0.115.6)
+Requirement already satisfied: uvicorn==0.32.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 2)) (0.32.1)
+Requirement already satisfied: streamlit==1.41.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 3)) (1.41.0)
+Requirement already satisfied: sqlalchemy==2.0.36 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 4)) (2.0.36)
+Requirement already satisfied: psycopg==3.2.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from psycopg[binary]==3.2.3->-r requirements.txt (line 5)) (3.2.3)
+Requirement already satisfied: pandas==2.2.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 6)) (2.2.3)
+Requirement already satisfied: numpy==2.1.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 7)) (2.1.3)
+Requirement already satisfied: scipy==1.14.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 8)) (1.14.1)
+Requirement already satisfied: scikit-learn==1.5.2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 9)) (1.5.2)
+Requirement already satisfied: xgboost==2.1.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 10)) (2.1.3)
+Requirement already satisfied: joblib==1.4.2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 11)) (1.4.2)
+Requirement already satisfied: requests==2.32.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 12)) (2.32.3)
+Requirement already satisfied: reportlab==4.2.5 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 13)) (4.2.5)
+Requirement already satisfied: pillow==10.4.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 14)) (10.4.0)
+Requirement already satisfied: matplotlib==3.9.2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from -r requirements.txt (line 15)) (3.9.2)
+Collecting pytest==8.3.3 (from -r requirements-dev.txt (line 2))
+  Downloading pytest-8.3.3-py3-none-any.whl.metadata (7.5 kB)
+Collecting ruff==0.7.4 (from -r requirements-dev.txt (line 3))
+  Downloading ruff-0.7.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (25 kB)
+Collecting mypy==1.14.1 (from -r requirements-dev.txt (line 4))
+  Downloading mypy-1.14.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl.metadata (2.1 kB)
+Requirement already satisfied: starlette<0.42.0,>=0.40.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from fastapi==0.115.6->-r requirements.txt (line 1)) (0.41.3)
+Requirement already satisfied: pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from fastapi==0.115.6->-r requirements.txt (line 1)) (2.12.5)
+Requirement already satisfied: typing-extensions>=4.8.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from fastapi==0.115.6->-r requirements.txt (line 1)) (4.15.0)
+Requirement already satisfied: click>=7.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from uvicorn==0.32.1->-r requirements.txt (line 2)) (8.3.1)
+Requirement already satisfied: h11>=0.8 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from uvicorn==0.32.1->-r requirements.txt (line 2)) (0.16.0)
+Requirement already satisfied: altair<6,>=4.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (5.5.0)
+Requirement already satisfied: blinker<2,>=1.0.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (1.9.0)
+Requirement already satisfied: cachetools<6,>=4.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (5.5.2)
+Requirement already satisfied: packaging<25,>=20 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (24.2)
+Requirement already satisfied: protobuf<6,>=3.20 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (5.29.6)
+Requirement already satisfied: pyarrow>=7.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (23.0.0)
+Requirement already satisfied: rich<14,>=10.14.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (13.9.4)
+Requirement already satisfied: tenacity<10,>=8.1.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (9.1.4)
+Requirement already satisfied: toml<2,>=0.10.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (0.10.2)
+Requirement already satisfied: watchdog<7,>=2.1.5 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (6.0.0)
+Requirement already satisfied: gitpython!=3.1.19,<4,>=3.0.7 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (3.1.46)
+Requirement already satisfied: pydeck<1,>=0.8.0b4 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (0.9.1)
+Requirement already satisfied: tornado<7,>=6.0.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from streamlit==1.41.0->-r requirements.txt (line 3)) (6.5.4)
+Requirement already satisfied: python-dateutil>=2.8.2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pandas==2.2.3->-r requirements.txt (line 6)) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pandas==2.2.3->-r requirements.txt (line 6)) (2025.2)
+Requirement already satisfied: tzdata>=2022.7 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pandas==2.2.3->-r requirements.txt (line 6)) (2025.3)
+Requirement already satisfied: charset-normalizer<4,>=2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from requests==2.32.3->-r requirements.txt (line 12)) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from requests==2.32.3->-r requirements.txt (line 12)) (3.11)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from requests==2.32.3->-r requirements.txt (line 12)) (2.6.3)
+Requirement already satisfied: certifi>=2017.4.17 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from requests==2.32.3->-r requirements.txt (line 12)) (2026.1.4)
+Requirement already satisfied: greenlet!=0.4.17 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from sqlalchemy==2.0.36->-r requirements.txt (line 4)) (3.3.1)
+Requirement already satisfied: threadpoolctl>=3.1.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from scikit-learn==1.5.2->-r requirements.txt (line 9)) (3.6.0)
+Requirement already satisfied: nvidia-nccl-cu12 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from xgboost==2.1.3->-r requirements.txt (line 10)) (2.29.3)
+Requirement already satisfied: chardet in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from reportlab==4.2.5->-r requirements.txt (line 13)) (5.2.0)
+Requirement already satisfied: contourpy>=1.0.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from matplotlib==3.9.2->-r requirements.txt (line 15)) (1.3.3)
+Requirement already satisfied: cycler>=0.10 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from matplotlib==3.9.2->-r requirements.txt (line 15)) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from matplotlib==3.9.2->-r requirements.txt (line 15)) (4.61.1)
+Requirement already satisfied: kiwisolver>=1.3.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from matplotlib==3.9.2->-r requirements.txt (line 15)) (1.4.9)
+Requirement already satisfied: pyparsing>=2.3.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from matplotlib==3.9.2->-r requirements.txt (line 15)) (3.3.2)
+Requirement already satisfied: iniconfig in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pytest==8.3.3->-r requirements-dev.txt (line 2)) (2.3.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pytest==8.3.3->-r requirements-dev.txt (line 2)) (1.6.0)
+Requirement already satisfied: mypy_extensions>=1.0.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from mypy==1.14.1->-r requirements-dev.txt (line 4)) (1.1.0)
+Requirement already satisfied: psycopg-binary==3.2.3 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from psycopg[binary]==3.2.3->-r requirements.txt (line 5)) (3.2.3)
+Requirement already satisfied: jinja2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (3.1.6)
+Requirement already satisfied: jsonschema>=3.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (4.26.0)
+Requirement already satisfied: narwhals>=1.14.2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (2.16.0)
+Requirement already satisfied: gitdb<5,>=4.0.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from gitpython!=3.1.19,<4,>=3.0.7->streamlit==1.41.0->-r requirements.txt (line 3)) (4.0.12)
+Requirement already satisfied: smmap<6,>=3.0.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from gitdb<5,>=4.0.1->gitpython!=3.1.19,<4,>=3.0.7->streamlit==1.41.0->-r requirements.txt (line 3)) (5.0.2)
+Requirement already satisfied: annotated-types>=0.6.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.115.6->-r requirements.txt (line 1)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.115.6->-r requirements.txt (line 1)) (2.41.5)
+Requirement already satisfied: typing-inspection>=0.4.2 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.115.6->-r requirements.txt (line 1)) (0.4.2)
+Requirement already satisfied: markdown-it-py>=2.2.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from rich<14,>=10.14.0->streamlit==1.41.0->-r requirements.txt (line 3)) (4.0.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from rich<14,>=10.14.0->streamlit==1.41.0->-r requirements.txt (line 3)) (2.19.2)
+Requirement already satisfied: anyio<5,>=3.4.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from starlette<0.42.0,>=0.40.0->fastapi==0.115.6->-r requirements.txt (line 1)) (4.12.1)
+Requirement already satisfied: MarkupSafe>=2.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from jinja2->altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (3.0.3)
+Requirement already satisfied: attrs>=22.2.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from jsonschema>=3.0->altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (25.4.0)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from jsonschema>=3.0->altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (2025.9.1)
+Requirement already satisfied: referencing>=0.28.4 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from jsonschema>=3.0->altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (0.37.0)
+Requirement already satisfied: rpds-py>=0.25.0 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from jsonschema>=3.0->altair<6,>=4.0->streamlit==1.41.0->-r requirements.txt (line 3)) (0.30.0)
+Requirement already satisfied: mdurl~=0.1 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich<14,>=10.14.0->streamlit==1.41.0->-r requirements.txt (line 3)) (0.1.2)
+Requirement already satisfied: six>=1.5 in /root/.pyenv/versions/3.12.12/lib/python3.12/site-packages (from python-dateutil>=2.8.2->pandas==2.2.3->-r requirements.txt (line 6)) (1.17.0)
+Downloading pytest-8.3.3-py3-none-any.whl (342 kB)
+Downloading ruff-0.7.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (11.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.1/11.1 MB 16.1 MB/s  0:00:00
+Downloading mypy-1.14.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl (12.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.9/12.9 MB 28.3 MB/s  0:00:00
+Installing collected packages: ruff, pytest, mypy
+  Attempting uninstall: ruff
+    Found existing installation: ruff 0.14.11
+    Uninstalling ruff-0.14.11:
+      Successfully uninstalled ruff-0.14.11
+  Attempting uninstall: pytest
+    Found existing installation: pytest 9.0.2
+    Uninstalling pytest-9.0.2:
+      Successfully uninstalled pytest-9.0.2
+  Attempting uninstall: mypy
+    Found existing installation: mypy 1.19.1
+    Uninstalling mypy-1.19.1:
+      Successfully uninstalled mypy-1.19.1
+
+Successfully installed mypy-1.14.1 pytest-8.3.3 ruff-0.7.4
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.3 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip

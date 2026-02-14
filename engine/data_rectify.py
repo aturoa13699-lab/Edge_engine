@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
+ALLOWED_PATH_BASES = (Path("artifacts").resolve(), Path("data").resolve())
 
 
 @dataclass
@@ -128,6 +131,40 @@ def _ensure_clean_tables(engine: Engine) -> None:
             conn.execute(text(stmt))
 
 
+def _resolve_allowed_path(path: str | None) -> Path | None:
+    if not path:
+        return None
+    raw = path.strip()
+    if "://" in raw:
+        raise ValueError("path must be a local filesystem path")
+
+    requested = Path(raw)
+
+    def _is_within(base: Path, candidate: Path) -> bool:
+        return candidate == base or base in candidate.parents
+
+    if requested.is_absolute():
+        resolved = requested.resolve()
+        for base in ALLOWED_PATH_BASES:
+            if _is_within(base, resolved):
+                return resolved
+        raise ValueError("absolute path must be under artifacts/ or data/")
+
+    # First honor relative paths from cwd (e.g. artifacts/foo.json)
+    cwd_candidate = requested.resolve()
+    for base in ALLOWED_PATH_BASES:
+        if _is_within(base, cwd_candidate):
+            return cwd_candidate
+
+    # Backward-compatible shorthand: treat relative path as scoped under allowed bases
+    for base in ALLOWED_PATH_BASES:
+        candidate = (base / requested).resolve()
+        if _is_within(base, candidate):
+            return candidate
+
+    raise ValueError("path must be under artifacts/ or data/")
+
+
 def _season_checksum(row: dict) -> str:
     payload = (
         f"{row['match_id']}:{row['season']}:{row['round_num']}:{row['home_team']}:"
@@ -139,7 +176,10 @@ def _season_checksum(row: dict) -> str:
 def _load_authoritative_payload(path: str | None) -> tuple[list[dict], list[dict]]:
     if not path:
         return [], []
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    safe_path = _resolve_allowed_path(path)
+    if safe_path is None:
+        return [], []
+    payload = json.loads(safe_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("authoritative payload must be a JSON object")
     matches = payload.get("matches", [])
@@ -152,7 +192,10 @@ def _load_authoritative_payload(path: str | None) -> tuple[list[dict], list[dict
 def _load_authoritative_sample(path: str | None) -> list[dict]:
     if not path:
         return []
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    safe_path = _resolve_allowed_path(path)
+    if safe_path is None:
+        return []
+    data = json.loads(safe_path.read_text(encoding="utf-8"))
     if not isinstance(data, list):
         raise ValueError("authoritative sample must be a JSON list")
     return data

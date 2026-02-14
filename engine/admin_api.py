@@ -9,6 +9,15 @@ logger = logging.getLogger("nrl-pillar1")
 app = FastAPI(title="NRL Edge Engine Admin API", version="1.1")
 
 
+def _safe_parity_response(report):
+    return {
+        "ok": report.ok,
+        "schema": report.schema,
+        "checked_count": len(report.checked_objects),
+        "missing_count": len(report.missing_objects),
+    }
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "version": "1.1"}
@@ -85,7 +94,7 @@ def data_quality_status():
 
     engine = get_engine()
     report = run_data_quality_gate(engine)
-    return {"ok": report.ok, "report": report.to_dict()}
+    return _safe_parity_response(report)
 
 
 @app.post("/backfill/{season}")
@@ -144,7 +153,7 @@ def schema_parity_smoke():
 
     engine = get_engine()
     report = run_truth_schema_parity_smoke(engine)
-    return {"ok": report.ok, "report": report.to_dict()}
+    return _safe_parity_response(report)
 
 
 @app.get("/schema/ops-parity-smoke")
