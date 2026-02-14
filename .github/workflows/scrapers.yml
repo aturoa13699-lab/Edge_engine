@@ -17,6 +17,24 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+
+      - name: Guard required secrets (fail-closed on schedule)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          missing=0
+          [ -n "${DATABASE_URL:-}" ] || { echo "::error::Missing secrets.DATABASE_URL"; missing=1; }
+          [ -n "${DISCORD_WEBHOOK_URL:-}" ] || { echo "::error::Missing secrets.DISCORD_WEBHOOK_URL"; missing=1; }
+          if [ "$missing" -ne 0 ]; then
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              echo "Skipping scraper run: required secrets not available in this dispatch context."
+              exit 0
+            fi
+            exit 1
+          fi
+
       - name: Run daily
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
