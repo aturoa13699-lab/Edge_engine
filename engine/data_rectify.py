@@ -140,29 +140,22 @@ def _resolve_allowed_path(path: str | None) -> Path | None:
 
     requested = Path(raw)
 
-    def _is_within(base: Path, candidate: Path) -> bool:
-        """
-        Return True if the resolved candidate path is the same as the resolved base
-        path or is located within it. This guards against path traversal by always
-        comparing fully-resolved paths and ensuring they share the same anchor/drive.
-        """
-        base_resolved = base.resolve()
-        candidate_resolved = candidate.resolve()
-        # On Windows, also ensure the drive/anchor matches; on POSIX this is a no-op.
-        if base_resolved.anchor != candidate_resolved.anchor:
-            return False
-        return candidate_resolved == base_resolved or base_resolved in candidate_resolved.parents
-
     if requested.is_absolute():
-        resolved = requested.resolve()
+        # Normalize and resolve symlinks once, then ensure the result lies under an
+        # allowed base directory to prevent path traversal or reading arbitrary files.
+        resolved = requested.resolve(strict=False)
         for base in ALLOWED_PATH_BASES:
-            if _is_within(base, resolved):
+            base_resolved = base  # ALLOWED_PATH_BASES are pre-resolved at import time
+            if resolved == base_resolved or base_resolved in resolved.parents:
                 return resolved
         raise ValueError("absolute path must be under artifacts/ or data/")
 
+    # Treat relative paths as relative to each allowed base in turn, again ensuring
+    # that the final resolved path is contained within that base directory.
     for base in ALLOWED_PATH_BASES:
-        candidate = (base / requested).resolve()
-        if _is_within(base, candidate):
+        base_resolved = base
+        candidate = (base_resolved / requested).resolve(strict=False)
+        if candidate == base_resolved or base_resolved in candidate.parents:
             return candidate
 
     raise ValueError("path must be under artifacts/ or data/")
