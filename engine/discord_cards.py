@@ -35,5 +35,7 @@ def slip_to_embed(slip: Slip) -> Dict[str, Any]:
     }
 
 
-def chunk_embeds(embeds: List[Dict[str, Any]], chunk_size: int = 10) -> List[List[Dict[str, Any]]]:
+def chunk_embeds(
+    embeds: List[Dict[str, Any]], chunk_size: int = 10
+) -> List[List[Dict[str, Any]]]:
     return [embeds[i : i + chunk_size] for i in range(0, len(embeds), chunk_size)]

@@ -46,15 +46,35 @@ def _draw_slip_card(slip: Slip, width: int = 800, height: int = 360) -> Drawing:
     d.add(Rect(10, 10, width - 20, height - 20, fillColor=None, strokeColor=None))
 
     # White card
-    d.add(Rect(20, 20, width - 40, height - 40, fillColor="#ffffff", strokeColor="#e5e7eb", strokeWidth=1))
+    d.add(
+        Rect(
+            20,
+            20,
+            width - 40,
+            height - 40,
+            fillColor="#ffffff",
+            strokeColor="#e5e7eb",
+            strokeWidth=1,
+        )
+    )
 
     # Status strip
-    d.add(Rect(20, 20, 10, height - 40, fillColor=status_color, strokeColor=status_color))
+    d.add(
+        Rect(20, 20, 10, height - 40, fillColor=status_color, strokeColor=status_color)
+    )
 
     x = 50
     y = height - 70
 
-    d.add(String(x, y, f"{slip.home_team} v {slip.away_team}", fontSize=18, fillColor="#0b63f6"))
+    d.add(
+        String(
+            x,
+            y,
+            f"{slip.home_team} v {slip.away_team}",
+            fontSize=18,
+            fillColor="#0b63f6",
+        )
+    )
     y -= 40
     d.add(String(x, y, slip.selection, fontSize=26, fillColor="#111827"))
     y -= 34
@@ -62,11 +82,17 @@ def _draw_slip_card(slip: Slip, width: int = 800, height: int = 360) -> Drawing:
     y -= 50
 
     d.add(String(x, y, f"Stake: ${slip.stake:.2f}", fontSize=18, fillColor="#111827"))
-    d.add(String(x + 320, y, f"Odds: {slip.odds:.2f}", fontSize=18, fillColor="#111827"))
+    d.add(
+        String(x + 320, y, f"Odds: {slip.odds:.2f}", fontSize=18, fillColor="#111827")
+    )
     y -= 34
 
     d.add(String(x, y, f"EV: {slip.ev:.4f}", fontSize=14, fillColor="#6b7280"))
-    d.add(String(x + 320, y, f"Model: {slip.model_version}", fontSize=14, fillColor="#6b7280"))
+    d.add(
+        String(
+            x + 320, y, f"Model: {slip.model_version}", fontSize=14, fillColor="#6b7280"
+        )
+    )
 
     return d
 

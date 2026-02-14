@@ -4,6 +4,8 @@ import pytest
 
 
 def test_pg_lifecycle_smoke(monkeypatch):
+    from engine.schema_router import ops_table, truth_table  # noqa: F401
+
     db_url = os.getenv("DATABASE_URL", "")
     integration_required = os.getenv("INTEGRATION_TEST", "0") == "1"
 
