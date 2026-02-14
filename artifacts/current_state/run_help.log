@@ -1,0 +1,29 @@
+usage: run.py [-h] [--season SEASON] [--round ROUND_NUM] [--rounds ROUNDS]
+              [--dry-run] [--seasons SEASONS] [--bankroll BANKROLL]
+              [--out OUT] [--source-name SOURCE_NAME]
+              [--source-ref SOURCE_REF] [--canary-path CANARY_PATH]
+              [--authoritative-payload-path AUTHORITATIVE_PAYLOAD_PATH]
+              [--calibration-season CALIBRATION_SEASON]
+              [--backtest-season BACKTEST_SEASON]
+              {init,full,daily,scrapers,deploy,train,report,fit-calibration,backfill,label-outcomes,backtest,seed,data-quality,rectify-clean,schema-parity-smoke,ops-parity-smoke,rebuild-clean-baseline,scraper-status,doctor}
+
+positional arguments:
+  {init,full,daily,scrapers,deploy,train,report,fit-calibration,backfill,label-outcomes,backtest,seed,data-quality,rectify-clean,schema-parity-smoke,ops-parity-smoke,rebuild-clean-baseline,scraper-status,doctor}
+
+options:
+  -h, --help            show this help message and exit
+  --season SEASON
+  --round ROUND_NUM
+  --rounds ROUNDS       Comma-separated round numbers for backfill/backtest
+                        (default: all)
+  --dry-run             Persist artifacts but mark slips as dry_run; skip
+                        notify by default
+  --seasons SEASONS
+  --bankroll BANKROLL   Initial bankroll for backtesting
+  --out OUT
+  --source-name SOURCE_NAME
+  --source-ref SOURCE_REF
+  --canary-path CANARY_PATH
+  --authoritative-payload-path AUTHORITATIVE_PAYLOAD_PATH
+  --calibration-season CALIBRATION_SEASON
+  --backtest-season BACKTEST_SEASON

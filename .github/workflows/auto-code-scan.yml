@@ -1,0 +1,83 @@
+name: Auto Code Scan
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "33 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-code-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python_scan:
+    name: Python scan (gate_fast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run gate_fast
+        run: bash scripts/gate_fast.sh
+
+  node_scan:
+    name: Node/TS scan (conditional)
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('package.json', 'node/package.json') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            node/package-lock.json
+
+      - name: Install deps
+        run: |
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          elif [ -f node/package.json ]; then
+            cd node
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          else
+            echo "No Node package manifest found"
+          fi
+
+      - name: TypeScript compile (if tsconfig exists)
+        run: |
+          if [ -f tsconfig.json ]; then
+            npx tsc --noEmit
+          elif [ -f node/tsconfig.json ]; then
+            cd node && npx tsc --noEmit
+          else
+            echo "No tsconfig found; skipping tsc."
+          fi
+
+      - name: Run common scripts if present
+        run: |
+          if [ -f package.json ]; then
+            for s in lint typecheck check test; do npm run "$s" --if-present; done
+          elif [ -f node/package.json ]; then
+            cd node
+            for s in lint typecheck check test; do npm run "$s" --if-present; done
+          fi

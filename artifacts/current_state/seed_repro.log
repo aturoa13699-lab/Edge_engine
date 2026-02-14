@@ -1,0 +1,8 @@
+2026-02-14 08:52:04 INFO nrl-pillar1: Seeded season 2022: 216 matches, 432 odds
+2026-02-14 08:52:04 INFO nrl-pillar1: Seeded season 2023: 216 matches, 432 odds
+2026-02-14 08:52:04 INFO nrl-pillar1: Seeded season 2024: 216 matches, 432 odds
+2026-02-14 08:52:04 INFO nrl-pillar1: Seeded season 2025: 216 matches, 432 odds
+2026-02-14 08:52:04 INFO nrl-pillar1: Seeded season 2026 (current): 216 fixtures (no scores)
+2026-02-14 08:52:04 INFO nrl-pillar1: Seed complete: {'matches': 1080, 'odds': 2160, 'team_ratings': 85, 'coach_profiles': 85, 'injuries': 85}
+2026-02-14 08:52:08 INFO nrl-pillar1: Backfill complete: {'season': 2025, 'backfilled': 8, 'skipped': 0}
+2026-02-14 08:52:10 INFO nrl-pillar1: Labelled 0 prediction outcomes for season 2025
