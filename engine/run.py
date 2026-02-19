@@ -200,6 +200,12 @@ def cmd_rectify_clean(
     )
 
 
+def cmd_doctor(engine):
+    from .doctor import run_doctor
+
+    return run_doctor(engine)
+
+
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument(

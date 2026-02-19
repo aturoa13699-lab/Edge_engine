@@ -25,7 +25,6 @@ jobs:
           --health-timeout=5s
           --health-retries=12
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/edge_engine
       INTEGRATION_TEST: "1"
       QUALITY_GATE_SEASONS: 2022,2023,2024,2025
     steps:
@@ -37,18 +36,22 @@ jobs:
       - name: Install PostgreSQL client (pg_isready/psql)
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Wait for Postgres (fail-closed)
+      - name: Resolve Postgres host and wait (fail-closed)
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U postgres -d edge_engine; then
-              echo "Postgres is ready."
-              psql "$DATABASE_URL" -c "select 1;" >/dev/null
-              exit 0
-            fi
-            sleep 1
+          for host in postgres localhost 127.0.0.1; do
+            for i in {1..30}; do
+              if pg_isready -h "$host" -p 5432 -U postgres -d edge_engine; then
+                db_url="postgresql+psycopg://postgres:postgres@${host}:5432/edge_engine"
+                psql "postgresql://postgres:postgres@${host}:5432/edge_engine" -c "select 1;" >/dev/null
+                echo "DATABASE_URL=${db_url}" >> "$GITHUB_ENV"
+                echo "Postgres is ready on host: ${host}"
+                exit 0
+              fi
+              sleep 1
+            done
           done
           echo "::group::Postgres container logs"
           docker logs "$POSTGRES_CONTAINER_ID" || true
