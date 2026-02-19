@@ -59,7 +59,12 @@ jobs:
               fi
               sleep 1
             done
+<<<<<<< codex/2026-02-19-fix-postgres-integration-in-actions
+            attempted_hosts="${attempted_hosts}${host} "
+=======
+>>>>>>> main
           done
+          echo "Attempted Postgres hosts: ${attempted_hosts}"
           echo "::group::Postgres container logs"
           docker logs "$POSTGRES_CONTAINER_ID" || true
           echo "::endgroup::"
@@ -69,6 +74,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
+          python -m pip check
 
       - name: Run nightly checks
         id: nightly_checks
