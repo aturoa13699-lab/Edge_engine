@@ -41,7 +41,10 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
+<<<<<<< codex/2026-02-19-fix-postgres-integration-in-actions
           attempted_hosts=""
+=======
+>>>>>>> main
           for host in postgres localhost 127.0.0.1; do
             for i in {1..30}; do
               if pg_isready -h "$host" -p 5432 -U postgres -d edge_engine; then
@@ -53,7 +56,10 @@ jobs:
               fi
               sleep 1
             done
+<<<<<<< codex/2026-02-19-fix-postgres-integration-in-actions
             attempted_hosts="${attempted_hosts}${host} "
+=======
+>>>>>>> main
           done
           echo "Attempted Postgres hosts: ${attempted_hosts}"
           echo "::group::Postgres container logs"
