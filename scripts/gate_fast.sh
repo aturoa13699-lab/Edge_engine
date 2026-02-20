@@ -13,6 +13,6 @@ ops_table(e, "slips")
 truth_table(e, "matches_raw")
 print("import-smoke-ok")
 PY
-pytest -q
+python -m pytest -q
 ruff format . --check
 ruff check .
