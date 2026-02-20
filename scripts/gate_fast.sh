@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+python -m pip check
 python -m engine.run --help
-python -m compileall -q engine
+python -m compileall -q engine tests streamlit_app
 python - <<'PY'
 from sqlalchemy import create_engine
 from engine.schema_router import ops_table, truth_table
 
 e = create_engine("sqlite://")
-print("OK", ops_table(e, "slips"), truth_table(e, "matches_raw"))
+ops_table(e, "slips")
+truth_table(e, "matches_raw")
+print("import-smoke-ok")
 PY
 pytest -q
 ruff format . --check
