@@ -239,7 +239,9 @@ def test_rectify_fails_closed_when_no_payload_and_seasons_provided():
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     _seed_raw(engine)
 
-    with pytest.raises(AuthoritativePayloadError, match="required but was not provided"):
+    with pytest.raises(
+        AuthoritativePayloadError, match="required but was not provided"
+    ):
         rectify_historical_partitions(
             engine,
             seasons=[2025],
