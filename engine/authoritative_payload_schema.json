@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "authoritative_payload.schema.json",
+  "title": "NRL Authoritative Payload",
+  "description": "Strict schema for authoritative match + odds payloads ingested by rectify-clean.",
+  "type": "object",
+  "required": ["matches", "odds"],
+  "additionalProperties": false,
+  "properties": {
+    "matches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "match_id",
+          "season",
+          "round_num",
+          "home_team",
+          "away_team",
+          "home_score",
+          "away_score"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "match_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique match identifier, e.g. '2025_R01_BRI_PEN'."
+          },
+          "season": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2099
+          },
+          "round_num": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "match_date": {
+            "type": ["string", "null"],
+            "description": "ISO-8601 date or datetime string, e.g. '2025-03-06' or '2025-03-06T09:00:00Z'."
+          },
+          "venue": {
+            "type": ["string", "null"]
+          },
+          "home_team": {
+            "type": "string",
+            "minLength": 1
+          },
+          "away_team": {
+            "type": "string",
+            "minLength": 1
+          },
+          "home_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "away_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      }
+    },
+    "odds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "match_id",
+          "team",
+          "opening_price"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "match_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Must join to a match_id in the matches array."
+          },
+          "team": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Team name this odds row belongs to."
+          },
+          "opening_price": {
+            "type": "number",
+            "exclusiveMinimum": 1.0,
+            "description": "Point-in-time opening price. Must be > 1.0 (decimal odds)."
+          },
+          "close_price": {
+            "type": ["number", "null"],
+            "exclusiveMinimum": 1.0
+          },
+          "last_price": {
+            "type": ["number", "null"],
+            "exclusiveMinimum": 1.0
+          },
+          "steam_factor": {
+            "type": ["number", "null"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -138,8 +138,9 @@ def rectify_clean(
     source_ref: str = "manual://unspecified",
     canary_path: str | None = None,
     authoritative_payload_path: str | None = None,
+    allow_empty_authoritative: bool = False,
 ):
-    from .data_rectify import rectify_historical_partitions
+    from .data_rectify import AuthoritativePayloadError, rectify_historical_partitions
 
     engine = get_engine()
     seasons_list = [int(s.strip()) for s in seasons.split(",") if s.strip()]
@@ -151,7 +152,10 @@ def rectify_clean(
             source_url_or_id=source_ref,
             canary_path=canary_path,
             authoritative_payload_path=authoritative_payload_path,
+            allow_empty_authoritative=allow_empty_authoritative,
         )
+    except AuthoritativePayloadError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "result": result.to_dict()}

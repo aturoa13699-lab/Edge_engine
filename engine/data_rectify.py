@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-
+import jsonschema
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+logger = logging.getLogger("nrl-pillar1")
+
 ALLOWED_PATH_BASES = (Path("artifacts").resolve(), Path("data").resolve())
+_SCHEMA_PATH = Path(__file__).parent / "authoritative_payload_schema.json"
+
+
+class AuthoritativePayloadError(ValueError):
+    """Raised when an authoritative payload is required but missing or invalid."""
 
 
 @dataclass
@@ -204,19 +212,65 @@ def _season_checksum(row: dict) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _load_authoritative_payload(path: str | None) -> tuple[list[dict], list[dict]]:
+def _load_payload_schema() -> dict:
+    return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def validate_authoritative_payload(payload: dict) -> None:
+    """Validate *payload* against the strict JSON Schema.
+
+    Raises ``AuthoritativePayloadError`` on any violation and also checks
+    referential integrity (every odds.match_id must appear in matches).
+    """
+    schema = _load_payload_schema()
+    try:
+        jsonschema.validate(instance=payload, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise AuthoritativePayloadError(
+            f"authoritative payload failed schema validation: {exc.message}"
+        ) from exc
+
+    # Referential integrity: every odds row must reference a declared match.
+    match_ids = {m["match_id"] for m in payload.get("matches", [])}
+    orphan_odds = [
+        o["match_id"]
+        for o in payload.get("odds", [])
+        if o.get("match_id") not in match_ids
+    ]
+    if orphan_odds:
+        raise AuthoritativePayloadError(
+            f"odds rows reference undeclared match_ids: {sorted(set(orphan_odds))}"
+        )
+
+
+def _load_authoritative_payload(
+    path: str | None,
+    *,
+    require: bool = False,
+) -> tuple[list[dict], list[dict]]:
     if not path:
+        if require:
+            raise AuthoritativePayloadError(
+                "authoritative payload path is required but was not provided "
+                "(pass --authoritative-payload-path or set "
+                "RECTIFY_AUTHORITATIVE_PAYLOAD_PATH, "
+                "or use --allow-empty-authoritative to bypass)"
+            )
         return [], []
     safe_path = _resolve_allowed_path(path)
     if safe_path is None:
+        if require:
+            raise AuthoritativePayloadError(
+                f"authoritative payload path '{path}' could not be resolved "
+                "to an allowed location"
+            )
         return [], []
     payload = json.loads(safe_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("authoritative payload must be a JSON object")
+        raise AuthoritativePayloadError("authoritative payload must be a JSON object")
+    validate_authoritative_payload(payload)
     matches = payload.get("matches", [])
     odds = payload.get("odds", [])
-    if not isinstance(matches, list) or not isinstance(odds, list):
-        raise ValueError("authoritative payload requires list fields: matches and odds")
     return matches, odds
 
 
@@ -241,7 +295,12 @@ def rectify_historical_partitions(
     canary_path: str | None = None,
     canary_sample_size: int = 25,
     authoritative_payload_path: str | None = None,
+    allow_empty_authoritative: bool = False,
 ) -> RectifySummary:
+    # Fail-closed: when seasons are provided and we're not explicitly told
+    # "empty is OK", the authoritative payload is required.
+    require_payload = bool(seasons) and not allow_empty_authoritative
+
     _ensure_clean_tables(engine)
     source_matches = _qname(engine, "nrl", "matches_raw")
     source_odds = _qname(engine, "nrl", "odds")
@@ -255,7 +314,8 @@ def rectify_historical_partitions(
 
     fetched_at = datetime.now(timezone.utc).isoformat()
     authoritative_matches, authoritative_odds = _load_authoritative_payload(
-        authoritative_payload_path
+        authoritative_payload_path,
+        require=require_payload,
     )
 
     with engine.begin() as conn:
