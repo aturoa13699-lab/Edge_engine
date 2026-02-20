@@ -15,7 +15,7 @@ ML_STATUS_BLEND = "blend"
 
 
 # Stake ladder: predefined levels that map EV tiers to descriptive labels
-STAKE_LADDER = [
+STAKE_LADDER: list[dict[str, str | float]] = [
     {
         "level": "pass",
         "label": "Pass",
