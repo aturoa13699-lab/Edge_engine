@@ -144,6 +144,7 @@ def cmd_seed(engine, season: int):
         seasons=historical + [season],
         source_name="seed_all",
         source_url_or_id="internal://seed_all",
+        allow_empty_authoritative=True,  # seed uses synthetic data, not truth
     )
 
 
@@ -187,6 +188,7 @@ def cmd_rectify_clean(
     source_url_or_id: str,
     canary_path: str | None,
     authoritative_payload_path: str | None,
+    allow_empty_authoritative: bool = False,
 ):
     from .data_rectify import rectify_historical_partitions
 
@@ -197,6 +199,7 @@ def cmd_rectify_clean(
         source_url_or_id=source_url_or_id,
         canary_path=canary_path,
         authoritative_payload_path=authoritative_payload_path,
+        allow_empty_authoritative=allow_empty_authoritative,
     )
 
 
@@ -279,6 +282,12 @@ def parse_args():
         "--authoritative-payload-path",
         type=str,
         default=os.getenv("RECTIFY_AUTHORITATIVE_PAYLOAD_PATH"),
+    )
+    ap.add_argument(
+        "--allow-empty-authoritative",
+        action="store_true",
+        default=os.getenv("RECTIFY_ALLOW_EMPTY_AUTHORITATIVE", "").strip() == "1",
+        help="Allow rectify-clean to proceed without an authoritative payload (fail-open)",
     )
     ap.add_argument(
         "--calibration-season",
@@ -375,6 +384,7 @@ def main():
             source_url_or_id=args.source_ref,
             canary_path=args.canary_path,
             authoritative_payload_path=args.authoritative_payload_path,
+            allow_empty_authoritative=args.allow_empty_authoritative,
         )
 
 

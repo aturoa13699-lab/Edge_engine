@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 from sqlalchemy import create_engine, text
 
-from engine.data_rectify import rectify_historical_partitions
+from engine.data_rectify import (
+    AuthoritativePayloadError,
+    rectify_historical_partitions,
+    validate_authoritative_payload,
+)
 
 
 def _seed_raw(engine):
@@ -67,6 +71,55 @@ def _seed_raw(engine):
         )
 
 
+def _valid_payload():
+    """Minimal valid authoritative payload matching the engine schema."""
+    return {
+        "matches": [
+            {
+                "match_id": "AUTH1",
+                "season": 2025,
+                "round_num": 1,
+                "match_date": "2025-03-07",
+                "venue": "Suncorp Stadium",
+                "home_team": "Brisbane Broncos",
+                "away_team": "Canberra Raiders",
+                "home_score": 22,
+                "away_score": 10,
+            }
+        ],
+        "odds": [
+            {
+                "match_id": "AUTH1",
+                "team": "Brisbane Broncos",
+                "opening_price": 1.8,
+                "close_price": 1.75,
+                "last_price": 1.77,
+                "steam_factor": 0.05,
+            },
+            {
+                "match_id": "AUTH1",
+                "team": "Canberra Raiders",
+                "opening_price": 2.1,
+                "close_price": 2.15,
+                "last_price": 2.13,
+                "steam_factor": -0.05,
+            },
+        ],
+    }
+
+
+def _write_payload(payload: dict) -> str:
+    """Write payload to artifacts/test_inputs and return the relative path."""
+    artifacts_dir = Path("artifacts/test_inputs")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    name = f"authoritative_payload_{uuid.uuid4().hex}.json"
+    (artifacts_dir / name).write_text(json.dumps(payload), encoding="utf-8")
+    return f"test_inputs/{name}"
+
+
+# ── Existing behaviour (fallback to nrl schema, opt-in bypass) ──────────────
+
+
 def test_rectify_copies_to_clean_and_records_provenance():
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     _seed_raw(engine)
@@ -96,6 +149,7 @@ def test_rectify_copies_to_clean_and_records_provenance():
         source_name="trusted_nrl_api",
         source_url_or_id="https://example.test/nrl",
         canary_path=f"test_inputs/{canary_name}",
+        allow_empty_authoritative=True,
     )
 
     assert result.copied_matches == 2
@@ -131,51 +185,14 @@ def test_rectify_from_authoritative_payload():
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     _seed_raw(engine)
 
-    payload = {
-        "matches": [
-            {
-                "match_id": "AUTH1",
-                "season": 2025,
-                "round_num": 1,
-                "match_date": "2025-03-07",
-                "venue": "Suncorp Stadium",
-                "home_team": "Brisbane Broncos",
-                "away_team": "Canberra Raiders",
-                "home_score": 22,
-                "away_score": 10,
-            }
-        ],
-        "odds": [
-            {
-                "match_id": "AUTH1",
-                "team": "Brisbane Broncos",
-                "opening_price": 1.8,
-                "close_price": 1.75,
-                "last_price": 1.77,
-                "steam_factor": 0.05,
-            },
-            {
-                "match_id": "AUTH1",
-                "team": "Canberra Raiders",
-                "opening_price": 2.1,
-                "close_price": 2.15,
-                "last_price": 2.13,
-                "steam_factor": -0.05,
-            },
-        ],
-    }
-    artifacts_dir = Path("artifacts/test_inputs")
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    payload_name = f"authoritative_payload_{uuid.uuid4().hex}.json"
-    payload_file = artifacts_dir / payload_name
-    payload_file.write_text(json.dumps(payload), encoding="utf-8")
+    payload_path = _write_payload(_valid_payload())
 
     result = rectify_historical_partitions(
         engine,
         seasons=[2025],
         source_name="official_feed",
         source_url_or_id="authoritative://feed",
-        authoritative_payload_path=f"test_inputs/{payload_name}",
+        authoritative_payload_path=payload_path,
     )
 
     assert result.copied_matches == 1
@@ -210,4 +227,125 @@ def test_rectify_rejects_disallowed_absolute_path():
             source_name="trusted_nrl_api",
             source_url_or_id="https://example.test/nrl",
             canary_path="/tmp/not_allowed.json",
+            allow_empty_authoritative=True,
+        )
+
+
+# ── Fail-closed tests ──────────────────────────────────────────────────────
+
+
+def test_rectify_fails_closed_when_no_payload_and_seasons_provided():
+    """Default behaviour: seasons + no payload = deterministic error."""
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    _seed_raw(engine)
+
+    with pytest.raises(AuthoritativePayloadError, match="required but was not provided"):
+        rectify_historical_partitions(
+            engine,
+            seasons=[2025],
+            source_name="test",
+            source_url_or_id="test://x",
+        )
+
+
+def test_rectify_allows_empty_with_explicit_bypass():
+    """allow_empty_authoritative=True skips the requirement."""
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    _seed_raw(engine)
+
+    result = rectify_historical_partitions(
+        engine,
+        seasons=[2025],
+        source_name="test",
+        source_url_or_id="test://x",
+        allow_empty_authoritative=True,
+    )
+    assert result.copied_matches == 2
+
+
+def test_rectify_empty_seasons_does_not_require_payload():
+    """No seasons = nothing to rectify, so no payload needed."""
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    _seed_raw(engine)
+
+    result = rectify_historical_partitions(
+        engine,
+        seasons=[],
+        source_name="test",
+        source_url_or_id="test://x",
+    )
+    assert result.copied_matches == 0
+
+
+# ── Schema validation tests ────────────────────────────────────────────────
+
+
+def test_validate_payload_accepts_valid():
+    validate_authoritative_payload(_valid_payload())
+
+
+def test_validate_payload_rejects_missing_opening_price():
+    payload = _valid_payload()
+    del payload["odds"][0]["opening_price"]
+    with pytest.raises(AuthoritativePayloadError, match="opening_price"):
+        validate_authoritative_payload(payload)
+
+
+def test_validate_payload_rejects_empty_matches():
+    payload = _valid_payload()
+    payload["matches"] = []
+    with pytest.raises(AuthoritativePayloadError):
+        validate_authoritative_payload(payload)
+
+
+def test_validate_payload_rejects_empty_odds():
+    payload = _valid_payload()
+    payload["odds"] = []
+    with pytest.raises(AuthoritativePayloadError):
+        validate_authoritative_payload(payload)
+
+
+def test_validate_payload_rejects_orphan_odds():
+    payload = _valid_payload()
+    payload["odds"].append(
+        {
+            "match_id": "GHOST_MATCH",
+            "team": "Nobody",
+            "opening_price": 2.0,
+        }
+    )
+    with pytest.raises(AuthoritativePayloadError, match="undeclared match_ids"):
+        validate_authoritative_payload(payload)
+
+
+def test_validate_payload_rejects_opening_price_lte_one():
+    payload = _valid_payload()
+    payload["odds"][0]["opening_price"] = 1.0
+    with pytest.raises(AuthoritativePayloadError):
+        validate_authoritative_payload(payload)
+
+
+def test_validate_payload_rejects_extra_fields():
+    payload = _valid_payload()
+    payload["matches"][0]["surprise_field"] = "oops"
+    with pytest.raises(AuthoritativePayloadError):
+        validate_authoritative_payload(payload)
+
+
+def test_rectify_rejects_invalid_payload_on_disk():
+    """A payload on disk that fails schema validation should raise."""
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    _seed_raw(engine)
+
+    bad_payload = _valid_payload()
+    del bad_payload["odds"][0]["opening_price"]
+    payload_path = _write_payload(bad_payload)
+
+    with pytest.raises(AuthoritativePayloadError, match="opening_price"):
+        rectify_historical_partitions(
+            engine,
+            seasons=[2025],
+            source_name="test",
+            source_url_or_id="test://x",
+            authoritative_payload_path=payload_path,
         )
