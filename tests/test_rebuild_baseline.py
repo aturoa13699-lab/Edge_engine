@@ -31,7 +31,7 @@ def test_rebuild_clean_baseline_records_manifest(monkeypatch):
         conn.execute(text("CREATE TABLE weather_daily (match_date text, venue text)"))
         conn.execute(
             text(
-                "CREATE TABLE slips (portfolio_id text PRIMARY KEY, season integer, round_num integer, slip_json text, status text, created_at text)"
+                "CREATE TABLE slips (portfolio_id text PRIMARY KEY, season integer, round_num integer, slip_json text, status text, decision text, decline_reason text, ml_status text, stake_ladder_level text, created_at text)"
             )
         )
         conn.execute(

@@ -186,6 +186,7 @@ CREATE TABLE IF NOT EXISTS nrl.model_prediction (
   p_fair numeric(7,5),
   calibrated_p numeric(7,5),
   model_version text DEFAULT 'v2026-02-poisson-v1',
+  ml_status text DEFAULT 'heuristic',
   clv_diff numeric(8,4),
   outcome_known boolean DEFAULT false,
   outcome_home_win boolean,
@@ -202,10 +203,15 @@ CREATE TABLE IF NOT EXISTS nrl.slips (
   round_num integer NOT NULL,
   slip_json jsonb NOT NULL,
   status text DEFAULT 'pending',
+  decision text DEFAULT 'RECO',
+  decline_reason text,
+  ml_status text DEFAULT 'heuristic',
+  stake_ladder_level text,
   created_at timestamptz DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS ix_slips_season_round_status ON nrl.slips(season, round_num, status);
+CREATE INDEX IF NOT EXISTS ix_slips_decision ON nrl.slips(decision);
 
 -- Calibration versioning
 CREATE TABLE IF NOT EXISTS nrl.calibration_params (

@@ -13,7 +13,7 @@ def sqlite_engine():
     with eng.begin() as conn:
         conn.execute(
             text(
-                "CREATE TABLE model_prediction (season integer, p_fair real, outcome_known integer, outcome_home_win integer)"
+                "CREATE TABLE model_prediction (season integer, p_fair real, ml_status text, outcome_known integer, outcome_home_win integer)"
             )
         )
         conn.execute(

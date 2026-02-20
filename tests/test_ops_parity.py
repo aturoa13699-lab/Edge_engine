@@ -5,7 +5,7 @@ from engine.ops_parity import run_ops_schema_parity_smoke
 
 def _create_ops_tables(engine):
     stmts = [
-        "CREATE TABLE slips (portfolio_id text PRIMARY KEY, season integer, round_num integer, slip_json text, status text)",
+        "CREATE TABLE slips (portfolio_id text PRIMARY KEY, season integer, round_num integer, slip_json text, status text, decision text, decline_reason text, ml_status text, stake_ladder_level text)",
         "CREATE TABLE model_prediction (id integer)",
         "CREATE TABLE model_registry (model_key text)",
         "CREATE TABLE calibration_params (season integer)",

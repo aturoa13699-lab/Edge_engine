@@ -19,7 +19,15 @@ from .guardrails import RoundExposureTracker, passes_edge_floor, passes_entropy_
 from .model_registry import get_champion
 from .schema_router import ops_table, truth_table, truth_view
 from .risk import size_stake
-from .types import Slip
+from .types import (
+    DECISION_DECLINED,
+    DECISION_RECO,
+    ML_STATUS_BLEND,
+    ML_STATUS_HEURISTIC,
+    ML_STATUS_ML,
+    Slip,
+    resolve_stake_ladder_level,
+)
 
 logger = logging.getLogger("nrl-pillar1")
 
@@ -74,8 +82,8 @@ def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
                   COALESCE(ih.injury_count, 0) AS home_injuries,
                   COALESCE(ia.injury_count, 0) AS away_injuries,
 
-                  COALESCE(oh.last_price, oh.close_price, oh.opening_price, 1.90) AS odds_taken,
-                  COALESCE(oh.close_price, oh.last_price, 1.90) AS close_price,
+                  COALESCE(oh.opening_price, 1.90) AS odds_taken,
+                  COALESCE(oh.close_price, oh.opening_price, 1.90) AS close_price,
 
                   COALESCE(ph.rating, 1500) AS home_rating,
                   COALESCE(pa.rating, 1500) AS away_rating,
@@ -136,8 +144,9 @@ def _fetch_live_feature_row(engine: Engine, match_id: str) -> Dict[str, float]:
     away_rating = float(row["away_rating"])
     rating_diff = home_rating - away_rating
 
-    close_price = float(row["close_price"]) if row["close_price"] else 1.90
-    market_implied_prob = float(1.0 / close_price) if close_price > 0 else 0.5
+    odds_taken_val = float(row["odds_taken"]) if row["odds_taken"] else 1.90
+    close_price = float(row["close_price"]) if row["close_price"] else odds_taken_val
+    market_implied_prob = float(1.0 / odds_taken_val) if odds_taken_val > 0 else 0.5
 
     return {
         "home_rest_days": float(row["home_rest_days"]),
@@ -205,8 +214,10 @@ def evaluate_match_and_decide(
     alpha = float(os.getenv("ML_BLEND_ALPHA", "0.65"))
     if p_ml is None:
         p_blend = p_h
+        ml_status = ML_STATUS_HEURISTIC
     else:
         p_blend = float(alpha * p_ml + (1.0 - alpha) * p_h)
+        ml_status = ML_STATUS_BLEND if alpha < 1.0 else ML_STATUS_ML
 
     # Calibration (beta)
     calibrator = load_latest_calibrator(engine, season)
@@ -223,18 +234,35 @@ def evaluate_match_and_decide(
     sizing = size_stake(bankroll=bankroll, p=p_cal, odds=odds_taken, max_frac=max_frac)
     stake = float(sizing.stake)
 
+    # Stake ladder
+    ladder = resolve_stake_ladder_level(ev)
+    ladder_level = ladder["level"]
+
     # --- Guardrails ---
     skip_reason = None
+    decision = DECISION_RECO
+    decline_reason = None
     if not passes_entropy_gate(p_cal):
         skip_reason = "entropy_gate"
+        decision = DECISION_DECLINED
+        decline_reason = "entropy_gate: prediction too uncertain"
         stake = 0.0
     elif not passes_edge_floor(ev):
         skip_reason = "edge_floor"
+        decision = DECISION_DECLINED
+        decline_reason = f"edge_floor: EV {ev:.4f} below minimum"
+        stake = 0.0
+    elif ladder_level == "pass":
+        skip_reason = "stake_ladder_pass"
+        decision = DECISION_DECLINED
+        decline_reason = f"stake_ladder: EV {ev:.4f} below pass threshold"
         stake = 0.0
     elif exposure_tracker is not None and stake > 0:
         stake = exposure_tracker.clamp_stake(round_num, stake)
         if stake <= 0:
             skip_reason = "round_exposure_cap"
+            decision = DECISION_DECLINED
+            decline_reason = "round_exposure_cap: budget exhausted"
         else:
             exposure_tracker.record(round_num, stake)
 
@@ -263,6 +291,10 @@ def evaluate_match_and_decide(
         status=status,
         model_version=model_version,
         reason=f"p_h={p_h:.3f} p_ml={(p_ml if p_ml is not None else float('nan')):.3f} p_blend={p_blend:.3f} p_cal={p_cal:.3f} capped={sizing.capped}{(' skip=' + skip_reason) if skip_reason else ''}",
+        ml_status=ml_status,
+        decision=decision,
+        decline_reason=decline_reason,
+        stake_ladder_level=ladder_level,
     )
 
     # CLV diff (odds space): close - taken (positive is good if taken earlier at better odds)
@@ -274,8 +306,8 @@ def evaluate_match_and_decide(
             sql_text(
                 f"""
                 INSERT INTO {pred_table}
-                (season, round_num, match_id, home_team, away_team, p_fair, calibrated_p, model_version, clv_diff)
-                VALUES (:s,:r,:mid,:h,:a,:pf,:cp,:ver,:clv)
+                (season, round_num, match_id, home_team, away_team, p_fair, calibrated_p, model_version, ml_status, clv_diff)
+                VALUES (:s,:r,:mid,:h,:a,:pf,:cp,:ver,:mls,:clv)
                 """
             ),
             dict(
@@ -287,6 +319,7 @@ def evaluate_match_and_decide(
                 pf=p_blend,
                 cp=p_cal,
                 ver=model_version,
+                mls=ml_status,
                 clv=clv_diff,
             ),
         )
@@ -294,8 +327,9 @@ def evaluate_match_and_decide(
         conn.execute(
             sql_text(
                 f"""
-                INSERT INTO {slips_table} (portfolio_id, season, round_num, slip_json, status)
-                VALUES (:pid, :s, :r, CAST(:sj AS jsonb), :st)
+                INSERT INTO {slips_table}
+                (portfolio_id, season, round_num, slip_json, status, decision, decline_reason, ml_status, stake_ladder_level)
+                VALUES (:pid, :s, :r, CAST(:sj AS jsonb), :st, :dec, :dr, :mls, :sll)
                 ON CONFLICT (portfolio_id) DO NOTHING
                 """
             ),
@@ -305,6 +339,10 @@ def evaluate_match_and_decide(
                 r=round_num,
                 sj=json.dumps(asdict(slip)),
                 st=status,
+                dec=decision,
+                dr=decline_reason,
+                mls=ml_status,
+                sll=ladder_level,
             ),
         )
 

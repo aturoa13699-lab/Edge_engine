@@ -79,7 +79,7 @@ def build_features(engine: Engine, seasons: List[int]) -> pd.DataFrame:
       COALESCE(ih.injury_count, 0) AS home_injuries,
       COALESCE(ia.injury_count, 0) AS away_injuries,
 
-      COALESCE(1.0 / NULLIF(oh.close_price,0), 0.5) AS market_implied_prob,
+      COALESCE(1.0 / NULLIF(oh.opening_price,0), 0.5) AS market_implied_prob,
 
       COALESCE(ph.rating, 1500) - COALESCE(pa.rating, 1500) AS rating_diff,
 

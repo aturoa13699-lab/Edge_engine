@@ -15,22 +15,32 @@ STATUS_COLORS = {
     "void": "#999999",
 }
 
+DECISION_COLORS = {
+    "RECO": "#00B050",
+    "DECLINED": "#FB7185",
+}
+
 
 def generate_styled_summary(slip: Slip) -> str:
     status_color = STATUS_COLORS.get(slip.status, "#0b63f6")
+    decision_color = DECISION_COLORS.get(slip.decision, "#999999")
+    ladder_label = slip.stake_ladder_level or ""
 
     return f"""
 <div style="background:#ffffff; border-left:4px solid {status_color}; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); padding:12px 16px; margin-bottom:12px; font-family:Roboto, sans-serif;">
-  <div style="font-size:12px; color:#0b63f6; font-weight:500;">{slip.home_team} v {slip.away_team}</div>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-size:12px; color:#0b63f6; font-weight:500;">{slip.home_team} v {slip.away_team}</div>
+    <div style="font-size:11px; font-weight:600; color:{decision_color}; border:1px solid {decision_color}; border-radius:4px; padding:2px 6px;">{slip.decision}</div>
+  </div>
   <div style="font-size:16px; font-weight:700; color:#000000;">{slip.selection}</div>
-  <div style="font-size:13px; color:#555555;">{slip.market}</div>
+  <div style="font-size:13px; color:#555555;">{slip.market}{(" | " + ladder_label) if ladder_label else ""}</div>
   <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
     <div style="font-size:14px;">Stake: <strong>${slip.stake:.2f}</strong></div>
     <div style="font-size:14px;">Odds: <strong>{slip.odds:.2f}</strong></div>
   </div>
   <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
     <div style="font-size:12px; color:#666;">EV: <strong>{slip.ev:.4f}</strong></div>
-    <div style="font-size:12px; color:#666;">Model: <strong>{slip.model_version}</strong></div>
+    <div style="font-size:12px; color:#666;">ML: <strong>{slip.ml_status}</strong> | {slip.model_version}</div>
   </div>
 </div>
 """.strip()
