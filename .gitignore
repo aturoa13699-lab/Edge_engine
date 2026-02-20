@@ -21,3 +21,4 @@ reports/
 *.pdf
 *.png
 node_modules/
+artifacts/
