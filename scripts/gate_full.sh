@@ -4,6 +4,6 @@ set -euo pipefail
 python -m pip check
 bash scripts/gate_fast.sh
 mypy .
-pytest -q tests/test_integration_pg.py
+python -m pytest -q tests/test_integration_pg.py
 ruff format . --check
 ruff check .
