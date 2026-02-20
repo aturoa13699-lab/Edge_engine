@@ -78,6 +78,10 @@ def _dict_to_slip(d):
         status=d.get("status", "pending"),
         model_version=d.get("model_version", "v2026-02-poisson-v1"),
         reason=d.get("reason"),
+        ml_status=d.get("ml_status", "heuristic"),
+        decision=d.get("decision", "RECO"),
+        decline_reason=d.get("decline_reason"),
+        stake_ladder_level=d.get("stake_ladder_level"),
     )
 
 
@@ -513,27 +517,34 @@ with tab_backtest:
 with tab_slips:
     st.header("Betting Slips")
 
-    sc1, sc2 = st.columns([1, 1])
+    sc1, sc2, sc3 = st.columns([1, 1, 1])
     with sc1:
         slip_status = st.selectbox(
             "Filter by Status", ["pending", "dry_run", "win", "loss", "void"], index=0
         )
     with sc2:
+        slip_decision = st.selectbox(
+            "Filter by Decision", ["ALL", "RECO", "DECLINED"], index=0
+        )
+    with sc3:
         slip_limit = st.slider("Limit", 5, 50, 15)
 
     rows = []
     try:
+        query_parts = [
+            "SELECT slip_json, decision, ml_status, stake_ladder_level FROM nrl.slips WHERE status = :st"
+        ]
+        query_params: dict = {"st": slip_status, "n": slip_limit}
+        if slip_decision != "ALL":
+            query_parts.append("AND decision = :dec")
+            query_params["dec"] = slip_decision
+        query_parts.append("ORDER BY created_at DESC LIMIT :n")
+
         with eng.begin() as conn:
             rs = (
                 conn.execute(
-                    text("""
-                    SELECT slip_json
-                    FROM nrl.slips
-                    WHERE status = :st
-                    ORDER BY created_at DESC
-                    LIMIT :n
-                """),
-                    dict(st=slip_status, n=slip_limit),
+                    text(" ".join(query_parts)),
+                    query_params,
                 )
                 .mappings()
                 .all()
@@ -553,10 +564,26 @@ with tab_slips:
     else:
         for d in rows:
             slip = _dict_to_slip(d)
-            label = f"{slip.home_team} v {slip.away_team} | {slip.selection} | ${slip.stake:.2f} @ {slip.odds:.2f}"
+            decision_icon = "RECO" if slip.decision == "RECO" else "DECLINED"
+            ladder_label = slip.stake_ladder_level or ""
+            label = (
+                f"[{decision_icon}] {slip.home_team} v {slip.away_team} | "
+                f"{slip.selection} | ${slip.stake:.2f} @ {slip.odds:.2f}"
+                f"{(' | ' + ladder_label) if ladder_label else ''}"
+            )
             with st.expander(label, expanded=False):
                 html = generate_styled_summary(slip)
                 st.markdown(html, unsafe_allow_html=True)
+
+                # Decision & ML status badges
+                d1, d2, d3 = st.columns(3)
+                d1.metric("Decision", slip.decision)
+                d2.metric("ML Status", slip.ml_status)
+                d3.metric("Stake Ladder", slip.stake_ladder_level or "N/A")
+
+                if slip.decline_reason:
+                    st.warning(f"Decline reason: {slip.decline_reason}")
+
                 if slip.reason:
                     st.divider()
                     st.caption("Model Debug")

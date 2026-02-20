@@ -6,7 +6,7 @@ from .db import get_engine
 
 logger = logging.getLogger("nrl-pillar1")
 
-app = FastAPI(title="NRL Edge Engine Admin API", version="1.1")
+app = FastAPI(title="NRL Edge Engine Admin API", version="1.2")
 
 
 def _safe_parity_response(report):
@@ -20,7 +20,7 @@ def _safe_parity_response(report):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "version": "1.1"}
+    return {"ok": True, "version": "1.2"}
 
 
 @app.post("/schema/apply")
@@ -94,7 +94,14 @@ def data_quality_status():
 
     engine = get_engine()
     report = run_data_quality_gate(engine)
-    return _safe_parity_response(report)
+    return {
+        "ok": report.ok,
+        "checked_at": report.checked_at,
+        "seasons": report.seasons,
+        "checks": report.checks,
+        "errors": report.errors,
+        "metrics": report.metrics,
+    }
 
 
 @app.post("/backfill/{season}")
@@ -136,14 +143,17 @@ def rectify_clean(
 
     engine = get_engine()
     seasons_list = [int(s.strip()) for s in seasons.split(",") if s.strip()]
-    result = rectify_historical_partitions(
-        engine,
-        seasons=seasons_list,
-        source_name=source_name,
-        source_url_or_id=source_ref,
-        canary_path=canary_path,
-        authoritative_payload_path=authoritative_payload_path,
-    )
+    try:
+        result = rectify_historical_partitions(
+            engine,
+            seasons=seasons_list,
+            source_name=source_name,
+            source_url_or_id=source_ref,
+            canary_path=canary_path,
+            authoritative_payload_path=authoritative_payload_path,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "result": result.to_dict()}
 
 

@@ -21,19 +21,22 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: edge_engine
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U postgres -d edge_engine"
+          --health-cmd="pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=12
     env:
       INTEGRATION_TEST: "1"
       QUALITY_GATE_SEASONS: 2022,2023,2024,2025
+      POSTGRES_DB: edge_engine
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,21 +51,19 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
+          attempted_hosts=""
           for host in postgres localhost 127.0.0.1; do
             for i in {1..30}; do
-              if pg_isready -h "$host" -p 5432 -U postgres -d edge_engine; then
-                db_url="postgresql+psycopg://postgres:postgres@${host}:5432/edge_engine"
-                psql "postgresql://postgres:postgres@${host}:5432/edge_engine" -c "select 1;" >/dev/null
+              if pg_isready -h "$host" -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; then
+                db_url="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${host}:5432/${POSTGRES_DB}"
+                PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$host" -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select 1;" >/dev/null
                 echo "DATABASE_URL=${db_url}" >> "$GITHUB_ENV"
                 echo "Postgres is ready on host: ${host}"
                 exit 0
               fi
               sleep 1
             done
-<<<<<<< codex/2026-02-19-fix-postgres-integration-in-actions
             attempted_hosts="${attempted_hosts}${host} "
-=======
->>>>>>> main
           done
           echo "Attempted Postgres hosts: ${attempted_hosts}"
           echo "::group::Postgres container logs"
