@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NRL Global Vector Registry v1.0",
+  "version": "1.0.0",
+  "locked_at": "2026-02-21T00:00:00Z",
+  "governance": {
+    "no_narrative_features": true,
+    "no_recursive_hybrids": true,
+    "no_duplicate_semantics": true,
+    "all_per_80_minute_adjusted": true
+  },
+  "atomic_vectors": [
+    {
+      "name": "line_breaks_per80",
+      "description": "Line breaks per 80 minutes played",
+      "unit": "count_per_80"
+    },
+    {
+      "name": "post_contact_meters_per80",
+      "description": "Post-contact meters per 80 minutes played",
+      "unit": "meters_per_80"
+    },
+    {
+      "name": "tackle_efficiency",
+      "description": "Tackles made / (tackles made + missed tackles)",
+      "unit": "ratio_0_1"
+    },
+    {
+      "name": "offload_rate",
+      "description": "Offloads per carry",
+      "unit": "ratio"
+    },
+    {
+      "name": "errors_per80",
+      "description": "Errors per 80 minutes played",
+      "unit": "count_per_80"
+    },
+    {
+      "name": "kick_meters_per80",
+      "description": "Kick meters per 80 minutes played",
+      "unit": "meters_per_80"
+    },
+    {
+      "name": "run_meters_per80",
+      "description": "Run meters per 80 minutes played",
+      "unit": "meters_per_80"
+    },
+    {
+      "name": "dummy_half_runs_per80",
+      "description": "Dummy half runs per 80 minutes played",
+      "unit": "count_per_80"
+    },
+    {
+      "name": "tackle_breaks_per80",
+      "description": "Tackle breaks per 80 minutes played",
+      "unit": "count_per_80"
+    },
+    {
+      "name": "try_assists_per80",
+      "description": "Try assists per 80 minutes played",
+      "unit": "count_per_80"
+    },
+    {
+      "name": "tries_per80",
+      "description": "Tries per 80 minutes played",
+      "unit": "count_per_80"
+    },
+    {
+      "name": "one_on_one_steal_rate",
+      "description": "One-on-one strip success rate",
+      "unit": "ratio_0_1"
+    },
+    {
+      "name": "effective_tackle_pct",
+      "description": "Effective tackles / total tackle attempts",
+      "unit": "ratio_0_1"
+    },
+    {
+      "name": "involvement_rate",
+      "description": "Total involvements (runs + passes + kicks) per 80 minutes",
+      "unit": "count_per_80"
+    }
+  ],
+  "hybrid_vectors": [
+    {
+      "name": "carry_dominance",
+      "description": "Weighted composite of run meters, post-contact meters and tackle breaks",
+      "components": ["run_meters_per80", "post_contact_meters_per80", "tackle_breaks_per80"]
+    },
+    {
+      "name": "defensive_pressure",
+      "description": "Weighted composite of tackle efficiency and steal rate",
+      "components": ["tackle_efficiency", "one_on_one_steal_rate", "effective_tackle_pct"]
+    },
+    {
+      "name": "playmaking_index",
+      "description": "Weighted composite of try assists, offloads and dummy half activity",
+      "components": ["try_assists_per80", "offload_rate", "dummy_half_runs_per80"]
+    },
+    {
+      "name": "error_discipline",
+      "description": "Inverse of error rate (higher = fewer errors)",
+      "components": ["errors_per80"]
+    },
+    {
+      "name": "kicking_game",
+      "description": "Kick meters contribution",
+      "components": ["kick_meters_per80"]
+    },
+    {
+      "name": "yardage_efficiency",
+      "description": "Run meters per carry (raw, not per-80)",
+      "components": ["run_meters_per80"]
+    },
+    {
+      "name": "fatigue_resilience",
+      "description": "Ratio of second-half to first-half involvement (minute-adjusted)",
+      "components": ["involvement_rate"]
+    },
+    {
+      "name": "momentum_contribution",
+      "description": "Combined line breaks and tackle breaks impact",
+      "components": ["line_breaks_per80", "tackle_breaks_per80"]
+    },
+    {
+      "name": "set_completion_impact",
+      "description": "Player contribution to set completions (carries in final-tackle sets)",
+      "components": ["involvement_rate", "errors_per80"]
+    },
+    {
+      "name": "field_position_impact",
+      "description": "Combined kick and run meters normalised to field position gain",
+      "components": ["kick_meters_per80", "run_meters_per80"]
+    }
+  ],
+  "context_drivers": [
+    {
+      "name": "matchup_score",
+      "description": "Elo-based expected outcome differential",
+      "source": "team_ratings"
+    },
+    {
+      "name": "script_score",
+      "description": "Pre-game script likelihood (favours specific play styles)",
+      "source": "derived"
+    },
+    {
+      "name": "weather_score",
+      "description": "Weather impact on game style (0=ideal, 1=severely impacted)",
+      "source": "weather_daily"
+    },
+    {
+      "name": "venue_score",
+      "description": "Home/away/neutral venue advantage",
+      "source": "matches_raw"
+    },
+    {
+      "name": "role_uncertainty",
+      "description": "Key player availability uncertainty (0=full strength, 1=depleted)",
+      "source": "injuries_current"
+    },
+    {
+      "name": "travel_distance_km",
+      "description": "Distance travelled to venue in km",
+      "source": "derived"
+    },
+    {
+      "name": "turnaround_days",
+      "description": "Days since last match",
+      "source": "team_rest_v"
+    }
+  ]
+}

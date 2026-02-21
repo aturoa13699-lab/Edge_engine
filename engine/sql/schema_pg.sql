@@ -282,6 +282,115 @@ CREATE TABLE IF NOT EXISTS nrl.scraper_runs (
 CREATE INDEX IF NOT EXISTS ix_scraper_runs_scraper_started_at
   ON nrl.scraper_runs(scraper, started_at DESC);
 
+-- Player match stats (truth source for vector computation)
+CREATE TABLE IF NOT EXISTS nrl_clean.player_match_stats (
+  match_id text NOT NULL,
+  player_name text NOT NULL,
+  team text NOT NULL,
+  unit text DEFAULT 'bench',
+  season integer NOT NULL,
+  round_num integer NOT NULL,
+  minutes numeric(5,1) NOT NULL DEFAULT 0,
+  runs integer DEFAULT 0,
+  run_meters numeric(7,1) DEFAULT 0,
+  carries integer DEFAULT 0,
+  post_contact_meters numeric(7,1) DEFAULT 0,
+  line_breaks integer DEFAULT 0,
+  tackle_breaks integer DEFAULT 0,
+  offloads integer DEFAULT 0,
+  tackles_made integer DEFAULT 0,
+  missed_tackles integer DEFAULT 0,
+  effective_tackles integer DEFAULT 0,
+  ineffective_tackles integer DEFAULT 0,
+  errors integer DEFAULT 0,
+  tries integer DEFAULT 0,
+  try_assists integer DEFAULT 0,
+  kicks integer DEFAULT 0,
+  kick_meters numeric(7,1) DEFAULT 0,
+  passes integer DEFAULT 0,
+  dummy_half_runs integer DEFAULT 0,
+  one_on_one_steals integer DEFAULT 0,
+  one_on_one_attempts integer DEFAULT 0,
+  first_half_involvements integer DEFAULT 0,
+  second_half_involvements integer DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (match_id, player_name)
+);
+
+CREATE INDEX IF NOT EXISTS ix_nrl_clean_pms_season_round
+  ON nrl_clean.player_match_stats(season, round_num);
+
+-- Match context (pre-game context drivers for vector computation)
+CREATE TABLE IF NOT EXISTS nrl.match_context (
+  match_id text NOT NULL,
+  season integer NOT NULL,
+  round_num integer NOT NULL,
+  home_rating numeric(10,2) DEFAULT 1500,
+  away_rating numeric(10,2) DEFAULT 1500,
+  is_wet integer DEFAULT 0,
+  wind_speed_kmh numeric(5,1) DEFAULT 10,
+  temp_c numeric(5,1) DEFAULT 20,
+  is_home integer DEFAULT 1,
+  injury_count integer DEFAULT 0,
+  travel_distance_km numeric(8,1) DEFAULT 0,
+  rest_days integer DEFAULT 7,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (match_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_nrl_match_context_season
+  ON nrl.match_context(season, round_num);
+
+-- Computed player vectors (output of compute-vectors)
+CREATE TABLE IF NOT EXISTS nrl.player_vectors (
+  match_id text NOT NULL,
+  player_name text NOT NULL,
+  team text NOT NULL,
+  unit text DEFAULT 'bench',
+  season integer NOT NULL,
+  round_num integer NOT NULL,
+  minutes numeric(5,1) NOT NULL DEFAULT 0,
+  atomics_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  hybrids_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  context_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  atomics_coverage numeric(4,3) DEFAULT 0,
+  hybrids_coverage numeric(4,3) DEFAULT 0,
+  registry_version text NOT NULL DEFAULT '1.0.0',
+  registry_hash text NOT NULL DEFAULT '',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (match_id, player_name)
+);
+
+CREATE INDEX IF NOT EXISTS ix_nrl_player_vectors_season
+  ON nrl.player_vectors(season, round_num);
+
+-- Aggregated team vectors by positional unit (output of compute-vectors)
+CREATE TABLE IF NOT EXISTS nrl.team_vectors (
+  match_id text NOT NULL,
+  team text NOT NULL,
+  unit text NOT NULL,
+  season integer NOT NULL,
+  round_num integer NOT NULL,
+  player_count integer DEFAULT 0,
+  total_minutes numeric(7,1) DEFAULT 0,
+  atomics_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  hybrids_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  context_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  atomics_coverage numeric(4,3) DEFAULT 0,
+  hybrids_coverage numeric(4,3) DEFAULT 0,
+  registry_version text NOT NULL DEFAULT '1.0.0',
+  registry_hash text NOT NULL DEFAULT '',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (match_id, team, unit)
+);
+
+CREATE INDEX IF NOT EXISTS ix_nrl_team_vectors_season
+  ON nrl.team_vectors(season, round_num);
+
 -- Views: rest days per team per match
 CREATE OR REPLACE VIEW nrl.team_rest_v AS
 WITH team_matches AS (
