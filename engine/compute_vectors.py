@@ -25,12 +25,25 @@ from .vector_metrics import (
     compute_context_drivers,
     compute_hybrid_metrics,
 )
-from .vector_registry import atomic_vector_names, hybrid_vector_names
+from .vector_registry import (
+    atomic_vector_names,
+    hybrid_vector_names,
+    registry_hash as _registry_hash,
+    registry_version as _registry_version,
+)
 
 logger = logging.getLogger("nrl-pillar1")
 
 # Positional units for team-level aggregation
 UNITS = ("spine", "middles", "edges", "bench")
+
+
+def _coverage(data: Dict[str, Any], expected_count: int) -> float:
+    """Fraction of keys in *data* that are non-null, out of *expected_count*."""
+    if expected_count <= 0:
+        return 0.0
+    non_null = sum(1 for v in data.values() if v is not None)
+    return round(non_null / expected_count, 3)
 
 
 def _fetch_player_stats(
@@ -86,6 +99,10 @@ def _upsert_player_vectors(
 ) -> int:
     """Write computed player vectors to nrl.player_vectors."""
     pv = ops_table(engine, "player_vectors")
+    n_atomics = len(atomic_vector_names())
+    n_hybrids = len(hybrid_vector_names())
+    ver = _registry_version()
+    rhash = _registry_hash()
     count = 0
     with engine.begin() as conn:
         for row in rows:
@@ -93,10 +110,13 @@ def _upsert_player_vectors(
                 sql_text(f"""
                     INSERT INTO {pv}
                     (match_id, player_name, team, unit, season, round_num,
-                     minutes, atomics_json, hybrids_json, context_json)
+                     minutes, atomics_json, hybrids_json, context_json,
+                     atomics_coverage, hybrids_coverage,
+                     registry_version, registry_hash)
                     VALUES (:match_id, :player_name, :team, :unit, :season,
                             :round_num, :minutes, CAST(:atomics AS jsonb),
-                            CAST(:hybrids AS jsonb), CAST(:context AS jsonb))
+                            CAST(:hybrids AS jsonb), CAST(:context AS jsonb),
+                            :a_cov, :h_cov, :reg_ver, :reg_hash)
                     ON CONFLICT (match_id, player_name) DO UPDATE SET
                         team = EXCLUDED.team,
                         unit = EXCLUDED.unit,
@@ -104,6 +124,10 @@ def _upsert_player_vectors(
                         atomics_json = EXCLUDED.atomics_json,
                         hybrids_json = EXCLUDED.hybrids_json,
                         context_json = EXCLUDED.context_json,
+                        atomics_coverage = EXCLUDED.atomics_coverage,
+                        hybrids_coverage = EXCLUDED.hybrids_coverage,
+                        registry_version = EXCLUDED.registry_version,
+                        registry_hash = EXCLUDED.registry_hash,
                         updated_at = now()
                 """),
                 {
@@ -117,6 +141,10 @@ def _upsert_player_vectors(
                     "atomics": json.dumps(row["atomics"]),
                     "hybrids": json.dumps(row["hybrids"]),
                     "context": json.dumps(row["context"]),
+                    "a_cov": _coverage(row["atomics"], n_atomics),
+                    "h_cov": _coverage(row["hybrids"], n_hybrids),
+                    "reg_ver": ver,
+                    "reg_hash": rhash,
                 },
             )
             count += 1
@@ -194,6 +222,10 @@ def _upsert_team_vectors(
 ) -> int:
     """Write aggregated team vectors to nrl.team_vectors."""
     tv = ops_table(engine, "team_vectors")
+    n_atomics = len(atomic_vector_names())
+    n_hybrids = len(hybrid_vector_names())
+    ver = _registry_version()
+    rhash = _registry_hash()
     count = 0
     with engine.begin() as conn:
         for row in rows:
@@ -202,18 +234,25 @@ def _upsert_team_vectors(
                     INSERT INTO {tv}
                     (match_id, team, unit, season, round_num,
                      player_count, total_minutes,
-                     atomics_json, hybrids_json, context_json)
+                     atomics_json, hybrids_json, context_json,
+                     atomics_coverage, hybrids_coverage,
+                     registry_version, registry_hash)
                     VALUES (:match_id, :team, :unit, :season, :round_num,
                             :player_count, :total_minutes,
                             CAST(:atomics AS jsonb),
                             CAST(:hybrids AS jsonb),
-                            CAST(:context AS jsonb))
+                            CAST(:context AS jsonb),
+                            :a_cov, :h_cov, :reg_ver, :reg_hash)
                     ON CONFLICT (match_id, team, unit) DO UPDATE SET
                         player_count = EXCLUDED.player_count,
                         total_minutes = EXCLUDED.total_minutes,
                         atomics_json = EXCLUDED.atomics_json,
                         hybrids_json = EXCLUDED.hybrids_json,
                         context_json = EXCLUDED.context_json,
+                        atomics_coverage = EXCLUDED.atomics_coverage,
+                        hybrids_coverage = EXCLUDED.hybrids_coverage,
+                        registry_version = EXCLUDED.registry_version,
+                        registry_hash = EXCLUDED.registry_hash,
                         updated_at = now()
                 """),
                 {
@@ -227,6 +266,10 @@ def _upsert_team_vectors(
                     "atomics": json.dumps(row["atomics"]),
                     "hybrids": json.dumps(row["hybrids"]),
                     "context": json.dumps(row["context"]),
+                    "a_cov": _coverage(row["atomics"], n_atomics),
+                    "h_cov": _coverage(row["hybrids"], n_hybrids),
+                    "reg_ver": ver,
+                    "reg_hash": rhash,
                 },
             )
             count += 1

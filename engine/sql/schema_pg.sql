@@ -355,6 +355,10 @@ CREATE TABLE IF NOT EXISTS nrl.player_vectors (
   atomics_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   hybrids_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   context_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  atomics_coverage numeric(4,3) DEFAULT 0,
+  hybrids_coverage numeric(4,3) DEFAULT 0,
+  registry_version text NOT NULL DEFAULT '1.0.0',
+  registry_hash text NOT NULL DEFAULT '',
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   PRIMARY KEY (match_id, player_name)
@@ -375,6 +379,10 @@ CREATE TABLE IF NOT EXISTS nrl.team_vectors (
   atomics_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   hybrids_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   context_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  atomics_coverage numeric(4,3) DEFAULT 0,
+  hybrids_coverage numeric(4,3) DEFAULT 0,
+  registry_version text NOT NULL DEFAULT '1.0.0',
+  registry_hash text NOT NULL DEFAULT '',
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   PRIMARY KEY (match_id, team, unit)

@@ -3,7 +3,9 @@ from engine.vector_registry import (
     atomic_vector_names,
     context_driver_names,
     hybrid_vector_names,
+    metric_dict_hash,
     metric_dictionary,
+    registry_hash,
     registry_version,
 )
 
@@ -52,3 +54,15 @@ def test_metric_dictionary_has_all_hybrids():
     md = metric_dictionary()
     for name in hybrid_vector_names():
         assert name in md["hybrid_metrics"], f"missing hybrid metric: {name}"
+
+
+def test_registry_hash_is_sha256():
+    h = registry_hash()
+    assert len(h) == 64
+    assert all(c in "0123456789abcdef" for c in h)
+
+
+def test_metric_dict_hash_is_sha256():
+    h = metric_dict_hash()
+    assert len(h) == 64
+    assert all(c in "0123456789abcdef" for c in h)

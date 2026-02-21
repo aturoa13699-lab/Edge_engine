@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NRL Vector Storage Contract v1",
+  "version": "1.0.0",
+  "locked_at": "2026-02-21T00:00:00Z",
+  "description": "Defines the exact shape of rows stored in nrl.player_vectors and nrl.team_vectors. Any writer must conform; any reader can assume this shape.",
+  "player_vector_row": {
+    "type": "object",
+    "required": [
+      "match_id", "player_name", "team", "unit", "season", "round_num",
+      "minutes", "atomics_json", "hybrids_json", "context_json",
+      "atomics_coverage", "hybrids_coverage",
+      "registry_version", "registry_hash"
+    ],
+    "properties": {
+      "match_id": { "type": "string", "minLength": 1 },
+      "player_name": { "type": "string", "minLength": 1 },
+      "team": { "type": "string", "minLength": 1 },
+      "unit": {
+        "type": "string",
+        "enum": ["spine", "middles", "edges", "bench"]
+      },
+      "season": { "type": "integer", "minimum": 2000 },
+      "round_num": { "type": "integer", "minimum": 1 },
+      "minutes": { "type": "number", "minimum": 0 },
+      "atomics_json": {
+        "type": "object",
+        "description": "Keys must be a subset of atomic_vector_names(). Values are number or null.",
+        "additionalProperties": { "type": ["number", "null"] }
+      },
+      "hybrids_json": {
+        "type": "object",
+        "description": "Keys must be a subset of hybrid_vector_names(). Values are number or null.",
+        "additionalProperties": { "type": ["number", "null"] }
+      },
+      "context_json": {
+        "type": "object",
+        "description": "Keys must be a subset of context_driver_names(). Values are number or null.",
+        "additionalProperties": { "type": ["number", "null"] }
+      },
+      "atomics_coverage": {
+        "type": "number", "minimum": 0, "maximum": 1,
+        "description": "Fraction of atomic vectors that are non-null (0-1)."
+      },
+      "hybrids_coverage": {
+        "type": "number", "minimum": 0, "maximum": 1,
+        "description": "Fraction of hybrid vectors that are non-null (0-1)."
+      },
+      "registry_version": {
+        "type": "string",
+        "description": "Version string of the registry used to compute these vectors."
+      },
+      "registry_hash": {
+        "type": "string",
+        "description": "SHA-256 hash of the registry lock file for reproducibility."
+      }
+    }
+  },
+  "team_vector_row": {
+    "type": "object",
+    "required": [
+      "match_id", "team", "unit", "season", "round_num",
+      "player_count", "total_minutes",
+      "atomics_json", "hybrids_json", "context_json",
+      "atomics_coverage", "hybrids_coverage",
+      "registry_version", "registry_hash"
+    ],
+    "properties": {
+      "match_id": { "type": "string" },
+      "team": { "type": "string" },
+      "unit": { "type": "string", "enum": ["spine", "middles", "edges", "bench"] },
+      "season": { "type": "integer" },
+      "round_num": { "type": "integer" },
+      "player_count": { "type": "integer", "minimum": 0 },
+      "total_minutes": { "type": "number", "minimum": 0 },
+      "atomics_json": { "type": "object" },
+      "hybrids_json": { "type": "object" },
+      "context_json": { "type": "object" },
+      "atomics_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+      "hybrids_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+      "registry_version": { "type": "string" },
+      "registry_hash": { "type": "string" }
+    }
+  },
+  "aggregation_contract": {
+    "method": "minutes_weighted_average",
+    "null_policy": "exclude_null_from_weighted_average",
+    "coverage_formula": "count(non_null_values) / count(total_expected_keys)"
+  }
+}

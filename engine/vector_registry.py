@@ -7,6 +7,7 @@ from this module rather than hard-coding names.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Dict, List
@@ -24,8 +25,14 @@ _METRIC_DICT_PATH = (
     / "nrl.vector_metric_dictionary.v1_0.lock.json"
 )
 
-_registry: Dict = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
-_metric_dict: Dict = json.loads(_METRIC_DICT_PATH.read_text(encoding="utf-8"))
+_registry_raw = _REGISTRY_PATH.read_text(encoding="utf-8")
+_metric_dict_raw = _METRIC_DICT_PATH.read_text(encoding="utf-8")
+
+_registry: Dict = json.loads(_registry_raw)
+_metric_dict: Dict = json.loads(_metric_dict_raw)
+
+_REGISTRY_HASH = hashlib.sha256(_registry_raw.encode("utf-8")).hexdigest()
+_METRIC_DICT_HASH = hashlib.sha256(_metric_dict_raw.encode("utf-8")).hexdigest()
 
 
 # ── Public API ──────────────────────────────────────────────────────────────
@@ -53,6 +60,16 @@ def all_vector_names() -> List[str]:
 
 def registry_version() -> str:
     return _registry["version"]
+
+
+def registry_hash() -> str:
+    """Return SHA-256 hash of the registry lock file (for reproducibility)."""
+    return _REGISTRY_HASH
+
+
+def metric_dict_hash() -> str:
+    """Return SHA-256 hash of the metric dictionary lock file."""
+    return _METRIC_DICT_HASH
 
 
 def metric_dictionary() -> Dict:
