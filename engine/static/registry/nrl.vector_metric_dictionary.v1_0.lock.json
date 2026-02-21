@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NRL Vector Metric Dictionary v1.0",
+  "version": "1.0.0",
+  "locked_at": "2026-02-21T00:00:00Z",
+  "description": "Defines how each atomic/hybrid/context vector is computed from raw fields in player_match_stats and match_context.",
+  "missing_value_policy": "Use 0.0 for counts, null propagation for ratios with zero denominator. Minutes < 1 → skip row.",
+  "atomic_metrics": {
+    "line_breaks_per80": {
+      "formula": "(line_breaks / minutes) * 80",
+      "required_fields": ["line_breaks", "minutes"],
+      "missing_default": 0.0
+    },
+    "post_contact_meters_per80": {
+      "formula": "(post_contact_meters / minutes) * 80",
+      "required_fields": ["post_contact_meters", "minutes"],
+      "missing_default": 0.0
+    },
+    "tackle_efficiency": {
+      "formula": "tackles_made / (tackles_made + missed_tackles)",
+      "required_fields": ["tackles_made", "missed_tackles"],
+      "missing_default": null,
+      "zero_denominator_policy": "null"
+    },
+    "offload_rate": {
+      "formula": "offloads / carries",
+      "required_fields": ["offloads", "carries"],
+      "missing_default": null,
+      "zero_denominator_policy": "null"
+    },
+    "errors_per80": {
+      "formula": "(errors / minutes) * 80",
+      "required_fields": ["errors", "minutes"],
+      "missing_default": 0.0
+    },
+    "kick_meters_per80": {
+      "formula": "(kick_meters / minutes) * 80",
+      "required_fields": ["kick_meters", "minutes"],
+      "missing_default": 0.0
+    },
+    "run_meters_per80": {
+      "formula": "(run_meters / minutes) * 80",
+      "required_fields": ["run_meters", "minutes"],
+      "missing_default": 0.0
+    },
+    "dummy_half_runs_per80": {
+      "formula": "(dummy_half_runs / minutes) * 80",
+      "required_fields": ["dummy_half_runs", "minutes"],
+      "missing_default": 0.0
+    },
+    "tackle_breaks_per80": {
+      "formula": "(tackle_breaks / minutes) * 80",
+      "required_fields": ["tackle_breaks", "minutes"],
+      "missing_default": 0.0
+    },
+    "try_assists_per80": {
+      "formula": "(try_assists / minutes) * 80",
+      "required_fields": ["try_assists", "minutes"],
+      "missing_default": 0.0
+    },
+    "tries_per80": {
+      "formula": "(tries / minutes) * 80",
+      "required_fields": ["tries", "minutes"],
+      "missing_default": 0.0
+    },
+    "one_on_one_steal_rate": {
+      "formula": "one_on_one_steals / one_on_one_attempts",
+      "required_fields": ["one_on_one_steals", "one_on_one_attempts"],
+      "missing_default": null,
+      "zero_denominator_policy": "null"
+    },
+    "effective_tackle_pct": {
+      "formula": "effective_tackles / (effective_tackles + ineffective_tackles + missed_tackles)",
+      "required_fields": ["effective_tackles", "ineffective_tackles", "missed_tackles"],
+      "missing_default": null,
+      "zero_denominator_policy": "null"
+    },
+    "involvement_rate": {
+      "formula": "((runs + passes + kicks) / minutes) * 80",
+      "required_fields": ["runs", "passes", "kicks", "minutes"],
+      "missing_default": 0.0
+    }
+  },
+  "hybrid_metrics": {
+    "carry_dominance": {
+      "formula": "0.4 * run_meters_per80 / 100.0 + 0.35 * post_contact_meters_per80 / 50.0 + 0.25 * tackle_breaks_per80 / 5.0",
+      "components": ["run_meters_per80", "post_contact_meters_per80", "tackle_breaks_per80"],
+      "normalisation": "component-scaled to [0, ~1] range before weighting"
+    },
+    "defensive_pressure": {
+      "formula": "0.45 * tackle_efficiency + 0.25 * effective_tackle_pct + 0.30 * one_on_one_steal_rate",
+      "components": ["tackle_efficiency", "effective_tackle_pct", "one_on_one_steal_rate"],
+      "normalisation": "ratios already in [0, 1]"
+    },
+    "playmaking_index": {
+      "formula": "0.45 * try_assists_per80 / 2.0 + 0.30 * offload_rate + 0.25 * dummy_half_runs_per80 / 5.0",
+      "components": ["try_assists_per80", "offload_rate", "dummy_half_runs_per80"],
+      "normalisation": "component-scaled"
+    },
+    "error_discipline": {
+      "formula": "1.0 / (1.0 + errors_per80)",
+      "components": ["errors_per80"],
+      "normalisation": "inverse, range (0, 1]"
+    },
+    "kicking_game": {
+      "formula": "kick_meters_per80 / 200.0",
+      "components": ["kick_meters_per80"],
+      "normalisation": "scaled by typical max"
+    },
+    "yardage_efficiency": {
+      "formula": "run_meters / max(carries, 1)",
+      "components": ["run_meters_per80"],
+      "raw_fields_needed": ["run_meters", "carries"],
+      "normalisation": "raw meters per carry"
+    },
+    "fatigue_resilience": {
+      "formula": "second_half_involvements / max(first_half_involvements, 1)",
+      "components": ["involvement_rate"],
+      "raw_fields_needed": ["first_half_involvements", "second_half_involvements"],
+      "normalisation": "ratio, 1.0 = no dropoff"
+    },
+    "momentum_contribution": {
+      "formula": "0.55 * line_breaks_per80 / 3.0 + 0.45 * tackle_breaks_per80 / 5.0",
+      "components": ["line_breaks_per80", "tackle_breaks_per80"],
+      "normalisation": "component-scaled"
+    },
+    "set_completion_impact": {
+      "formula": "involvement_rate * error_discipline",
+      "components": ["involvement_rate", "errors_per80"],
+      "normalisation": "product of scaled components"
+    },
+    "field_position_impact": {
+      "formula": "0.5 * kick_meters_per80 / 200.0 + 0.5 * run_meters_per80 / 100.0",
+      "components": ["kick_meters_per80", "run_meters_per80"],
+      "normalisation": "component-scaled"
+    }
+  },
+  "context_drivers": {
+    "matchup_score": {
+      "formula": "(home_rating - away_rating) / 400.0",
+      "required_fields": ["home_rating", "away_rating"],
+      "source_table": "team_ratings"
+    },
+    "script_score": {
+      "formula": "0.5 * abs(matchup_score) + 0.3 * weather_score + 0.2 * venue_score",
+      "required_fields": ["matchup_score", "weather_score", "venue_score"],
+      "source_table": "derived"
+    },
+    "weather_score": {
+      "formula": "0.4 * is_wet + 0.3 * max(0, (wind_speed_kmh - 15) / 30) + 0.3 * max(0, (35 - temp_c) / 20)",
+      "required_fields": ["is_wet", "wind_speed_kmh", "temp_c"],
+      "source_table": "weather_daily"
+    },
+    "venue_score": {
+      "formula": "1.0 if home, 0.0 if away, 0.5 if neutral",
+      "required_fields": ["home_team", "away_team", "venue"],
+      "source_table": "matches_raw"
+    },
+    "role_uncertainty": {
+      "formula": "min(1.0, injury_count / 5.0)",
+      "required_fields": ["injury_count"],
+      "source_table": "injuries_current"
+    },
+    "travel_distance_km": {
+      "formula": "lookup from venue-to-team-base-city distance table",
+      "required_fields": ["team", "venue"],
+      "source_table": "derived",
+      "missing_default": 0.0
+    },
+    "turnaround_days": {
+      "formula": "rest_days from team_rest_v",
+      "required_fields": ["rest_days"],
+      "source_table": "team_rest_v"
+    }
+  }
+}

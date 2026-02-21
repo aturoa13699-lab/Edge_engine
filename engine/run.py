@@ -203,6 +203,12 @@ def cmd_rectify_clean(
     )
 
 
+def cmd_compute_vectors(engine, season: int, rounds: list[int] | None):
+    from .compute_vectors import run as run_compute_vectors
+
+    return run_compute_vectors(engine, season=season, rounds=rounds)
+
+
 def cmd_doctor(engine):
     from .doctor import run_doctor
 
@@ -232,6 +238,7 @@ def parse_args():
             "ops-parity-smoke",
             "rebuild-clean-baseline",
             "scraper-status",
+            "compute-vectors",
             "doctor",
         ],
     )
@@ -367,6 +374,8 @@ def main():
         cmd_ops_parity_smoke(engine)
     elif args.command == "scraper-status":
         cmd_scraper_status(engine)
+    elif args.command == "compute-vectors":
+        cmd_compute_vectors(engine, season=args.season, rounds=rounds_list)
     elif args.command == "doctor":
         cmd_doctor(engine)
     elif args.command == "rebuild-clean-baseline":
